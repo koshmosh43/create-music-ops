@@ -37,78 +37,79 @@ function VinylDisc({ color, spinning }: { color: string; spinning: boolean }) {
 export function SpotifyEmbedStrip() {
   const [source, setSource] = useState<PlayerSource>({ kind: 'track', index: 0 })
   const [loading, setLoading] = useState(false)
-  const [iframeSrc, setIframeSrc] = useState(embedSrc({ kind: 'track', index: 0 }))
-  const iframeRef = useRef<HTMLIFrameElement>(null)
-  const cleanupManagerRef = useRef(createCleanupManager())
-
+  const containerRef = useRef<HTMLDivElement>(null)
+  const iframeContainerRef = useRef<HTMLDivElement>(null)
+  
   const activeAccent = source.kind === 'track' ? SPOTIFY_TRACKS[source.index].accent : SPOTIFY_GREEN
   const isPlaylist = source.kind === 'playlist'
 
-  // Debounced iframe source update to prevent memory leaks from rapid changes
-  const debouncedUpdateSrc = useCallback(
-    debounce((src: string) => {
-      setIframeSrc(src)
-    }, 200),
-    []
-  )
-
-  // Optimized source switching
+  // CRITICAL FIX: Recreate iframe container to force cleanup of Spotify's event listeners
   const switchSource = useCallback((next: PlayerSource) => {
     const nextSrc = embedSrc(next)
-    if (nextSrc === iframeSrc) return
+    const currentSrc = embedSrc(source)
+    if (nextSrc === currentSrc) return
 
     setLoading(true)
     setSource(next)
 
-    // Clear previous cleanup tasks
-    cleanupManagerRef.current.cleanup()
+    // FORCE IFRAME CLEANUP - this is the key fix
+    const container = iframeContainerRef.current
+    if (container) {
+      // Remove old iframe completely to cleanup Spotify's window listeners
+      container.innerHTML = ''
+      
+      // Create fresh iframe after small delay
+      setTimeout(() => {
+        const iframe = document.createElement('iframe')
+        iframe.src = nextSrc
+        iframe.width = '100%'
+        iframe.height = '100%'
+        iframe.title = 'Spotify Player'
+        iframe.allow = 'encrypted-media'
+        iframe.loading = 'lazy'
+        iframe.style.cssText = 'border: none; border-radius: 0; background: #121212;'
+        
+        // Simple load handler
+        iframe.onload = () => setLoading(false)
+        iframe.onerror = () => setLoading(false)
+        
+        container.appendChild(iframe)
+      }, 100)
+    }
+  }, [source])
 
-    // Debounce iframe src update
-    debouncedUpdateSrc(nextSrc)
-
-    // Fallback timeout for loading state
-    const loadingTimeout = setTimeout(() => setLoading(false), 4000)
-    cleanupManagerRef.current.add(() => clearTimeout(loadingTimeout))
-  }, [iframeSrc, debouncedUpdateSrc])
-
-  // Handle iframe events with proper memory management
+  // Initialize first iframe
   useEffect(() => {
-    const iframe = iframeRef.current
-    if (!iframe) return
+    const container = iframeContainerRef.current
+    if (!container || container.children.length > 0) return
 
-    let isComponentMounted = true
+    const iframe = document.createElement('iframe')
+    iframe.src = embedSrc(source)
+    iframe.width = '100%'
+    iframe.height = '100%'
+    iframe.title = 'Spotify Player'
+    iframe.allow = 'encrypted-media'
+    iframe.loading = 'lazy'
+    iframe.style.cssText = 'border: none; border-radius: 0; background: #121212;'
+    
+    iframe.onload = () => setLoading(false)
+    iframe.onerror = () => setLoading(false)
+    
+    container.appendChild(iframe)
+  }, [])
 
-    const handleLoad = () => {
-      if (isComponentMounted) {
-        setLoading(false)
+  // Block Spotify's postMessage listeners that cause freezing
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      // Block all Spotify postMessages to prevent UI freezing
+      if (event.origin?.includes('spotify.com')) {
+        event.stopImmediatePropagation()
+        return false
       }
     }
-
-    const handleError = () => {
-      if (isComponentMounted) {
-        setLoading(false)
-        console.warn('Spotify embed load error - this is normal for some tracks')
-      }
-    }
-
-    // Use passive listeners for better performance
-    iframe.addEventListener('load', handleLoad, { passive: true })
-    iframe.addEventListener('error', handleError, { passive: true })
-
-    return () => {
-      isComponentMounted = false
-      iframe.removeEventListener('load', handleLoad)
-      iframe.removeEventListener('error', handleError)
-    }
-  }, [iframeSrc])
-
-  // Master cleanup on component unmount
-  useEffect(() => {
-    const manager = cleanupManagerRef.current
-    return () => {
-      manager.cleanup()
-      debouncedUpdateSrc.cancel()
-    }
+    
+    window.addEventListener('message', handleMessage, { capture: true })
+    return () => window.removeEventListener('message', handleMessage, { capture: true })
   }, [])
 
   return (
@@ -243,8 +244,12 @@ export function SpotifyEmbedStrip() {
             })}
           </div>
 
-          {/* player — optimized iframe with proper memory management */}
-          <div className="relative flex-1 overflow-hidden rounded-2xl bg-[#121212] ring-1 ring-white/[0.08]" style={{ boxShadow: `0 8px 40px ${activeAccent}15` }}>
+          {/* player — FIXED: Manual iframe management to prevent Spotify listener leaks */}
+          <div 
+            ref={containerRef}
+            className="relative flex-1 overflow-hidden rounded-2xl bg-[#121212] ring-1 ring-white/[0.08]" 
+            style={{ boxShadow: `0 8px 40px ${activeAccent}15` }}
+          >
             {loading && (
               <div className="absolute inset-0 z-20 grid place-items-center bg-[#121212]/90 backdrop-blur-sm">
                 <div className="flex flex-col items-center gap-3">
@@ -256,25 +261,14 @@ export function SpotifyEmbedStrip() {
                 </div>
               </div>
             )}
-            <div style={{ height: isPlaylist ? 480 : 352, transition: 'height .4s ease' }}>
-              <iframe
-                ref={iframeRef}
-                key={iframeSrc} // Force remount when src changes significantly to prevent memory leaks
-                title="Spotify Player"
-                src={iframeSrc}
-                width="100%"
-                height="100%"
-                allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-                loading="lazy"
-                className="-m-px block scale-[1.005] bg-[#121212] transition-opacity duration-300"
-                style={{ 
-                  borderRadius: 0, 
-                  opacity: loading ? 0.3 : 1,
-                  pointerEvents: loading ? 'none' : 'auto'
-                }}
-                sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"
-              />
-            </div>
+            <div 
+              ref={iframeContainerRef}
+              style={{ 
+                height: isPlaylist ? 480 : 352, 
+                transition: 'height .4s ease',
+                opacity: loading ? 0.3 : 1
+              }}
+            />
           </div>
         </div>
       </div>
