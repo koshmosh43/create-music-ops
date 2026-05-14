@@ -43,7 +43,7 @@ export function SpotifyEmbedStrip() {
   const activeAccent = source.kind === 'track' ? SPOTIFY_TRACKS[source.index].accent : SPOTIFY_GREEN
   const isPlaylist = source.kind === 'playlist'
 
-  // CRITICAL FIX: Recreate iframe container to force cleanup of Spotify's event listeners
+  // NUCLEAR OPTION: Complete iframe isolation and recreation
   const switchSource = useCallback((next: PlayerSource) => {
     const nextSrc = embedSrc(next)
     const currentSrc = embedSrc(source)
@@ -52,30 +52,51 @@ export function SpotifyEmbedStrip() {
     setLoading(true)
     setSource(next)
 
-    // FORCE IFRAME CLEANUP - this is the key fix
     const container = iframeContainerRef.current
-    if (container) {
-      // Remove old iframe completely to cleanup Spotify's window listeners
-      container.innerHTML = ''
+    if (!container) return
+
+    // STEP 1: Nuclear cleanup - remove everything
+    container.innerHTML = ''
+    
+    // STEP 2: Force garbage collection delay
+    setTimeout(() => {
+      // STEP 3: Create completely isolated iframe
+      const iframe = document.createElement('iframe')
+      iframe.src = nextSrc
+      iframe.width = '100%'
+      iframe.height = '100%'
+      iframe.title = 'Spotify Player'
+      iframe.allow = 'encrypted-media'
+      iframe.loading = 'lazy'
+      iframe.referrerPolicy = 'strict-origin-when-cross-origin'
+      iframe.style.cssText = `
+        border: none; 
+        border-radius: 0; 
+        background: #121212;
+        pointer-events: auto;
+      `
       
-      // Create fresh iframe after small delay
+      // STEP 4: Minimal event handling to prevent listener accumulation
+      let loadHandled = false
+      const handleLoad = () => {
+        if (!loadHandled) {
+          loadHandled = true
+          setLoading(false)
+        }
+      }
+      
+      iframe.onload = handleLoad
+      iframe.onerror = handleLoad
+      
+      // STEP 5: Failsafe timeout
       setTimeout(() => {
-        const iframe = document.createElement('iframe')
-        iframe.src = nextSrc
-        iframe.width = '100%'
-        iframe.height = '100%'
-        iframe.title = 'Spotify Player'
-        iframe.allow = 'encrypted-media'
-        iframe.loading = 'lazy'
-        iframe.style.cssText = 'border: none; border-radius: 0; background: #121212;'
-        
-        // Simple load handler
-        iframe.onload = () => setLoading(false)
-        iframe.onerror = () => setLoading(false)
-        
-        container.appendChild(iframe)
-      }, 100)
-    }
+        if (!loadHandled) {
+          handleLoad()
+        }
+      }, 3000)
+      
+      container.appendChild(iframe)
+    }, 200) // Longer delay for better cleanup
   }, [source])
 
   // Initialize first iframe
@@ -98,19 +119,48 @@ export function SpotifyEmbedStrip() {
     container.appendChild(iframe)
   }, [])
 
-  // Block Spotify's postMessage listeners that cause freezing
+  // AGGRESSIVE FIX: Block ALL Spotify interactions that cause freezing
   useEffect(() => {
+    let blockingActive = false
+    
     const handleMessage = (event: MessageEvent) => {
-      // Block all Spotify postMessages to prevent UI freezing
-      if (event.origin?.includes('spotify.com')) {
+      // Block all Spotify-related messages
+      if (event.origin?.includes('spotify.com') || 
+          event.data?.type?.includes('spotify') ||
+          event.source?.location?.href?.includes('spotify')) {
         event.stopImmediatePropagation()
+        event.preventDefault()
         return false
       }
     }
     
-    window.addEventListener('message', handleMessage, { capture: true })
-    return () => window.removeEventListener('message', handleMessage, { capture: true })
-  }, [])
+    const handleClick = (event: MouseEvent) => {
+      // If clicking during track switch, prevent any interaction
+      if (loading || blockingActive) {
+        event.stopImmediatePropagation()
+        event.preventDefault()
+      }
+    }
+    
+    const handleFocus = (event: FocusEvent) => {
+      // Prevent iframe from capturing focus during switches
+      if (loading && event.target?.tagName === 'IFRAME') {
+        event.preventDefault()
+        ;(event.target as HTMLElement).blur()
+      }
+    }
+    
+    // Add listeners with highest priority
+    window.addEventListener('message', handleMessage, { capture: true, passive: false })
+    document.addEventListener('click', handleClick, { capture: true, passive: false })
+    document.addEventListener('focus', handleFocus, { capture: true, passive: false })
+    
+    return () => {
+      window.removeEventListener('message', handleMessage, { capture: true })
+      document.removeEventListener('click', handleClick, { capture: true })
+      document.removeEventListener('focus', handleFocus, { capture: true })
+    }
+  }, [loading])
 
   return (
     <section className="spotify-section relative overflow-hidden rounded-[1.75rem] border border-white/[0.07] shadow-2xl shadow-black/40">
@@ -156,10 +206,16 @@ export function SpotifyEmbedStrip() {
           {/* track list */}
           <div className="flex shrink-0 flex-col gap-1 lg:w-72">
             <button
-              onClick={() => switchSource({ kind: 'playlist' })}
+              onClick={() => {
+                if (!loading) {
+                  switchSource({ kind: 'playlist' })
+                }
+              }}
+              disabled={loading}
               className={cn(
                 'flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition-all',
-                isPlaylist
+                loading && 'pointer-events-none opacity-50',
+                isPlaylist && !loading
                   ? 'bg-[#1db954]/15 text-white ring-1 ring-[#1db954]/30 shadow-[inset_0_1px_0_#1db95420]'
                   : 'text-slate-400 hover:bg-white/[0.04] hover:text-slate-200',
               )}
@@ -198,10 +254,16 @@ export function SpotifyEmbedStrip() {
               return (
                 <button
                   key={t.id}
-                  onClick={() => switchSource({ kind: 'track', index: i })}
+                  onClick={() => {
+                    if (!loading) {
+                      switchSource({ kind: 'track', index: i })
+                    }
+                  }}
+                  disabled={loading}
                   className={cn(
                     'group/t relative flex items-center gap-3 rounded-xl px-3 py-2 text-left text-sm transition-all',
-                    active
+                    loading && 'pointer-events-none opacity-50',
+                    active && !loading
                       ? 'text-white ring-1 ring-white/[0.1]'
                       : 'text-slate-400 hover:bg-white/[0.03] hover:text-slate-200',
                   )}
@@ -251,13 +313,18 @@ export function SpotifyEmbedStrip() {
             style={{ boxShadow: `0 8px 40px ${activeAccent}15` }}
           >
             {loading && (
-              <div className="absolute inset-0 z-20 grid place-items-center bg-[#121212]/90 backdrop-blur-sm">
+              <div 
+                className="absolute inset-0 z-50 grid place-items-center bg-[#121212]/95 backdrop-blur-sm"
+                style={{ pointerEvents: 'all' }}
+                onClick={(e) => { e.stopPropagation(); e.preventDefault(); }}
+              >
                 <div className="flex flex-col items-center gap-3">
                   <div
                     className="size-8 animate-spin rounded-full border-2 border-transparent"
                     style={{ borderTopColor: activeAccent, borderRightColor: `${activeAccent}60` }}
                   />
-                  <span className="text-xs text-slate-500">Loading track…</span>
+                  <span className="text-xs text-slate-500">Switching track…</span>
+                  <span className="text-[10px] text-slate-600">Please wait</span>
                 </div>
               </div>
             )}
