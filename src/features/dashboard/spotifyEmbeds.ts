@@ -6,17 +6,17 @@ export type SpotifyTrack = {
 }
 
 export const SPOTIFY_TRACKS: SpotifyTrack[] = [
-  { id: '0VjIjW4GlUZAMYd2vXMi3b', title: 'Blinding Lights', artist: 'The Weeknd', accent: '#e23636' },
-  { id: '4Dvkj6JhhA12EX05fT7y2e', title: 'As It Was', artist: 'Harry Styles', accent: '#e6a040' },
-  { id: '3USxtqRwSYz57Ewm6wWRMp', title: 'Heat Waves', artist: 'Glass Animals', accent: '#56b870' },
-  { id: '39LLxExYz6ewLAcYrzQQyP', title: 'Levitating', artist: 'Dua Lipa', accent: '#a855f7' },
-  { id: '7qiZfU4dY1lWllzX7mPBI3', title: 'Shape of You', artist: 'Ed Sheeran', accent: '#3b82f6' },
-  { id: '2Fxmhks0bxGSBdJ92vM42m', title: 'bad guy', artist: 'Billie Eilish', accent: '#84cc16' },
-  { id: '7MXVkk9YMctZqd1Srtv4MB', title: 'Starboy', artist: 'The Weeknd', accent: '#f43f5e' },
-  { id: '0V3wPSX9ygBnCm8psDIegu', title: 'Anti-Hero', artist: 'Taylor Swift', accent: '#6366f1' },
+  { id: '4iV5W9uYEdYUVa79Axb7Rh', title: 'Flowers', artist: 'Miley Cyrus', accent: '#ff6b9d' },
+  { id: '1BxfuPKGuaTgP7aM0Bbdwr', title: 'Cruel Summer', artist: 'Taylor Swift', accent: '#67e8f9' },
+  { id: '5ChkMS8OtdzJeqyybCc9R5', title: 'Good 4 U', artist: 'Olivia Rodrigo', accent: '#a78bfa' },
+  { id: '7ytR5pFWmSjzHJIeQkgog4', title: 'HUMBLE.', artist: 'Kendrick Lamar', accent: '#34d399' },
+  { id: '0sf8kmTDo8LTqu4JWiLCz3', title: 'Stay', artist: 'The Kid LAROI & Justin Bieber', accent: '#fbbf24' },
+  { id: '6WrI0LAC5M1Rw2MnX2ZvEg', title: 'Unholy', artist: 'Sam Smith ft. Kim Petras', accent: '#f472b6' },
+  { id: '1mWdTewIgB3gtBM3TOSFhB', title: 'Industry Baby', artist: 'Lil Nas X & Jack Harlow', accent: '#fb923c' },
+  { id: '4LRPiXqCikLlN15c3yImP7', title: 'As It Was', artist: 'Harry Styles', accent: '#84cc16' },
 ]
 
-export const SPOTIFY_PLAYLIST_ID = '37i9dQZEVXbMDoHDwVN2tF'
+export const SPOTIFY_PLAYLIST_ID = '37i9dQZEVXbLRQDuF5jeBp'
 
 export type PlayerSource =
   | { kind: 'track'; index: number }

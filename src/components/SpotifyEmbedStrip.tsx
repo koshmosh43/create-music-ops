@@ -56,9 +56,17 @@ export function SpotifyEmbedStrip() {
   useEffect(() => {
     const el = iframeRef.current
     if (!el) return
+    
     const done = () => setLoading(false)
+    const error = () => setLoading(false)
+    
     el.addEventListener('load', done)
-    return () => el.removeEventListener('load', done)
+    el.addEventListener('error', error)
+    
+    return () => {
+      el.removeEventListener('load', done)
+      el.removeEventListener('error', error)
+    }
   }, [])
 
   return (
@@ -124,8 +132,8 @@ export function SpotifyEmbedStrip() {
                 <ListMusic size={16} className={isPlaylist ? 'text-[#1db954]' : 'text-slate-500'} />
               </span>
               <div className="min-w-0">
-                <span className="block truncate font-medium">Top 50 — Global</span>
-                <span className="text-[10px] text-slate-500">Spotify Charts</span>
+                <span className="block truncate font-medium">Top 50 — USA</span>
+                <span className="text-[10px] text-slate-500">Featured Tracks</span>
               </div>
               {isPlaylist && (
                 <span className="ml-auto flex shrink-0 items-end gap-[2px]">
