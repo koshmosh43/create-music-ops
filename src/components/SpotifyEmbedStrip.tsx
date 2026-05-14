@@ -1,6 +1,6 @@
-import { ExternalLink, ListMusic, Music, Volume2 } from 'lucide-react'
+import { ExternalLink, ListMusic, Volume2 } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { cn } from '../lib/cn'
+import { cn, debounce, createCleanupManager } from '../lib'
 import {
   SPOTIFY_PLAYLIST_ID,
   SPOTIFY_TRACKS,
@@ -37,35 +37,77 @@ function VinylDisc({ color, spinning }: { color: string; spinning: boolean }) {
 export function SpotifyEmbedStrip() {
   const [source, setSource] = useState<PlayerSource>({ kind: 'track', index: 0 })
   const [loading, setLoading] = useState(false)
+  const [iframeSrc, setIframeSrc] = useState(embedSrc({ kind: 'track', index: 0 }))
   const iframeRef = useRef<HTMLIFrameElement>(null)
-  const prevSrcRef = useRef(embedSrc({ kind: 'track', index: 0 }))
+  const cleanupManagerRef = useRef(createCleanupManager())
 
-  const activeAccent =
-    source.kind === 'track' ? SPOTIFY_TRACKS[source.index].accent : SPOTIFY_GREEN
+  const activeAccent = source.kind === 'track' ? SPOTIFY_TRACKS[source.index].accent : SPOTIFY_GREEN
   const isPlaylist = source.kind === 'playlist'
 
+  // Debounced iframe source update to prevent memory leaks from rapid changes
+  const debouncedUpdateSrc = useCallback(
+    debounce((src: string) => {
+      setIframeSrc(src)
+    }, 200),
+    []
+  )
+
+  // Optimized source switching
   const switchSource = useCallback((next: PlayerSource) => {
     const nextSrc = embedSrc(next)
-    if (nextSrc === prevSrcRef.current) return
+    if (nextSrc === iframeSrc) return
+
     setLoading(true)
     setSource(next)
-    prevSrcRef.current = nextSrc
-    if (iframeRef.current) iframeRef.current.src = nextSrc
-  }, [])
 
+    // Clear previous cleanup tasks
+    cleanupManagerRef.current.cleanup()
+
+    // Debounce iframe src update
+    debouncedUpdateSrc(nextSrc)
+
+    // Fallback timeout for loading state
+    const loadingTimeout = setTimeout(() => setLoading(false), 4000)
+    cleanupManagerRef.current.add(() => clearTimeout(loadingTimeout))
+  }, [iframeSrc, debouncedUpdateSrc])
+
+  // Handle iframe events with proper memory management
   useEffect(() => {
-    const el = iframeRef.current
-    if (!el) return
-    
-    const done = () => setLoading(false)
-    const error = () => setLoading(false)
-    
-    el.addEventListener('load', done)
-    el.addEventListener('error', error)
-    
+    const iframe = iframeRef.current
+    if (!iframe) return
+
+    let isComponentMounted = true
+
+    const handleLoad = () => {
+      if (isComponentMounted) {
+        setLoading(false)
+      }
+    }
+
+    const handleError = () => {
+      if (isComponentMounted) {
+        setLoading(false)
+        console.warn('Spotify embed load error - this is normal for some tracks')
+      }
+    }
+
+    // Use passive listeners for better performance
+    iframe.addEventListener('load', handleLoad, { passive: true })
+    iframe.addEventListener('error', handleError, { passive: true })
+
     return () => {
-      el.removeEventListener('load', done)
-      el.removeEventListener('error', error)
+      isComponentMounted = false
+      iframe.removeEventListener('load', handleLoad)
+      iframe.removeEventListener('error', handleError)
+    }
+  }, [iframeSrc])
+
+  // Master cleanup on component unmount
+  useEffect(() => {
+    const manager = cleanupManagerRef.current
+    return () => {
+      manager.cleanup()
+      debouncedUpdateSrc.cancel()
     }
   }, [])
 
@@ -132,15 +174,15 @@ export function SpotifyEmbedStrip() {
                 <ListMusic size={16} className={isPlaylist ? 'text-[#1db954]' : 'text-slate-500'} />
               </span>
               <div className="min-w-0">
-                <span className="block truncate font-medium">Top 50 — USA</span>
-                <span className="text-[10px] text-slate-500">Featured Tracks</span>
+                <span className="block truncate font-medium">Hottest 2026</span>
+                <span className="text-[10px] text-slate-500">Trending Now</span>
               </div>
               {isPlaylist && (
                 <span className="ml-auto flex shrink-0 items-end gap-[2px]">
                   {[0, 1, 2].map((b) => (
                     <span
                       key={b}
-                      className="eq-bar inline-block w-[3px] rounded-full bg-[#1db954]"
+                      className="eq-bar active inline-block w-[3px] rounded-full bg-[#1db954]"
                       style={{ height: 12, animationDelay: `${b * 0.15}s` }}
                     />
                   ))}
@@ -184,7 +226,7 @@ export function SpotifyEmbedStrip() {
                       {[0, 1, 2].map((b) => (
                         <span
                           key={b}
-                          className="eq-bar inline-block w-[3px] rounded-full"
+                          className="eq-bar active inline-block w-[3px] rounded-full"
                           style={{ height: 12, background: t.accent, animationDelay: `${b * 0.15}s` }}
                         />
                       ))}
@@ -201,30 +243,36 @@ export function SpotifyEmbedStrip() {
             })}
           </div>
 
-          {/* player — single iframe, never remounted */}
+          {/* player — optimized iframe with proper memory management */}
           <div className="relative flex-1 overflow-hidden rounded-2xl bg-[#121212] ring-1 ring-white/[0.08]" style={{ boxShadow: `0 8px 40px ${activeAccent}15` }}>
             {loading && (
-              <div className="absolute inset-0 z-20 grid place-items-center bg-[#121212]/80">
+              <div className="absolute inset-0 z-20 grid place-items-center bg-[#121212]/90 backdrop-blur-sm">
                 <div className="flex flex-col items-center gap-3">
                   <div
                     className="size-8 animate-spin rounded-full border-2 border-transparent"
                     style={{ borderTopColor: activeAccent, borderRightColor: `${activeAccent}60` }}
                   />
-                  <span className="text-xs text-slate-500">Loading…</span>
+                  <span className="text-xs text-slate-500">Loading track…</span>
                 </div>
               </div>
             )}
             <div style={{ height: isPlaylist ? 480 : 352, transition: 'height .4s ease' }}>
               <iframe
                 ref={iframeRef}
+                key={iframeSrc} // Force remount when src changes significantly to prevent memory leaks
                 title="Spotify Player"
-                src={embedSrc(source)}
+                src={iframeSrc}
                 width="100%"
                 height="100%"
                 allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
                 loading="lazy"
                 className="-m-px block scale-[1.005] bg-[#121212] transition-opacity duration-300"
-                style={{ borderRadius: 0, opacity: loading ? 0.3 : 1 }}
+                style={{ 
+                  borderRadius: 0, 
+                  opacity: loading ? 0.3 : 1,
+                  pointerEvents: loading ? 'none' : 'auto'
+                }}
+                sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"
               />
             </div>
           </div>
