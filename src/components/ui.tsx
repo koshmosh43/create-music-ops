@@ -1,15 +1,18 @@
 import { Slot } from '@radix-ui/react-slot'
 import { cva, type VariantProps } from 'class-variance-authority'
-import type { ComponentPropsWithoutRef, ReactNode } from 'react'
+import type { ComponentPropsWithoutRef, CSSProperties, ReactNode } from 'react'
+import type { LucideIcon } from 'lucide-react'
+import { coldHueAt } from '../lib/stackAccents'
 import { cn } from '../lib/cn'
-import type { Accent, MetricProps } from '../types'
+import { MetricMiniChart } from './MetricMiniChart'
+import type { MetricProps } from '../types'
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300 disabled:pointer-events-none disabled:opacity-50',
+  'inline-flex items-center justify-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand-lemon)] disabled:pointer-events-none disabled:opacity-50',
   {
     variants: {
       variant: {
-        primary: 'bg-cyan-300 text-slate-950 hover:bg-cyan-200',
+        primary: 'bg-[var(--brand-lemon)] text-[var(--ink-deep)] hover:brightness-110',
         ghost: 'border border-white/10 bg-white/[0.04] text-slate-100 hover:bg-white/[0.08]',
       },
     },
@@ -25,46 +28,53 @@ export function Button({ asChild, className, variant, ...props }: ButtonProps) {
   return <Comp className={cn(buttonVariants({ variant }), className)} {...props} />
 }
 
-export function Card({ children, className, ...props }: ComponentPropsWithoutRef<'section'> & { children: ReactNode }) {
+export function Card({ children, className, style, ...props }: ComponentPropsWithoutRef<'section'> & { children: ReactNode }) {
   return (
-    <section
-      className={cn('rounded-[1.75rem] border border-white/10 bg-white/[0.055] p-5 shadow-2xl shadow-black/25 backdrop-blur', className)}
-      {...props}
-    >
+    <section className={cn('panel-wrap rounded-[1.75rem] p-5 md:p-6', className)} style={style} {...props}>
       {children}
     </section>
   )
 }
 
-const accentStyles: Record<Accent, { gradient: string; glow: string }> = {
-  cyan: {
-    gradient: 'from-cyan-400/25 via-transparent to-transparent',
-    glow: 'shadow-cyan-400/8',
-  },
-  violet: {
-    gradient: 'from-violet-400/25 via-transparent to-transparent',
-    glow: 'shadow-violet-400/8',
-  },
-  rose: {
-    gradient: 'from-rose-400/25 via-transparent to-transparent',
-    glow: 'shadow-rose-400/8',
-  },
-  emerald: {
-    gradient: 'from-emerald-400/25 via-transparent to-transparent',
-    glow: 'shadow-emerald-400/8',
-  },
+function MetricIcon({ icon: Icon }: { icon: LucideIcon }) {
+  return (
+    <span className="metric-card__icon" aria-hidden>
+      <span className="metric-card__icon-halo" />
+      <Icon className="metric-card__icon-glyph" strokeWidth={1.65} absoluteStrokeWidth />
+    </span>
+  )
 }
 
-export function Metric({ label, value, delta, accent = 'cyan', children, style }: MetricProps) {
-  const { gradient, glow } = accentStyles[accent]
-  
+export function Metric({
+  label,
+  value,
+  delta,
+  accent: _accent,
+  icon: Icon,
+  viz,
+  vizSeed = 1,
+  trend = 'up',
+  index = 0,
+  children,
+  style,
+}: MetricProps) {
+  const hue = coldHueAt(index)
+
   return (
-    <Card className={cn('group relative min-h-34 overflow-hidden', glow)} style={{ animation: 'stagger-in .5s ease both', ...style }}>
-      <div className={cn('pointer-events-none absolute -inset-px rounded-[inherit] bg-gradient-to-br opacity-0 transition-opacity duration-500 group-hover:opacity-100', gradient)} />
-      <p className="text-sm text-slate-400">{label}</p>
-      <strong className="mt-4 block text-3xl font-semibold tabular-nums tracking-tight text-white">{value}</strong>
-      <span className="mt-3 inline-flex rounded-full bg-emerald-400/10 px-3 py-1 text-xs font-medium text-emerald-200">{delta}</span>
+    <section
+      className="metric-card card-surface group relative overflow-hidden transition-all duration-300"
+      style={{ '--card-hue': hue, animation: 'stagger-in .5s ease both', ...style } as CSSProperties}
+    >
+      <div className="relative z-10 flex items-start justify-between gap-2 sm:gap-3">
+        <p className="min-w-0 pr-1 text-[13px] leading-snug text-slate-400 sm:text-sm">{label}</p>
+        <MetricIcon icon={Icon} />
+      </div>
+      <strong className="relative z-[1] mt-3 block text-3xl font-semibold tabular-nums tracking-tight text-white">{value}</strong>
+      <span className="card-surface__delta relative z-[1] mt-3 inline-flex rounded-full px-3 py-1">{delta}</span>
+      {viz && (
+        <MetricMiniChart variant={viz} seed={vizSeed} hue={hue} trend={trend} />
+      )}
       {children}
-    </Card>
+    </section>
   )
 }

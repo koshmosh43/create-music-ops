@@ -2,16 +2,31 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=JetBrains+Mono:wght@400;500;600&family=Syne:wght@500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
     <meta
       name="description"
-      content="Create Music Ops: a senior frontend dashboard case study for music distribution, royalties, catalog analytics, and internal tooling."
+      content="Speculative internal tooling demo for Create Music Group — royalties, DSP analytics, TanStack tables, Recharts, GraphQL + Zod, React 19."
     />
-    <title>Create Music Ops</title>
+    <title>Create Music Ops · Senior Frontend Demo</title>
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      window.__spotifyEmbedWaiters = window.__spotifyEmbedWaiters || [];
+      window.onSpotifyIframeApiReady = function (IFrameAPI) {
+        window.__spotifyIframeApi = IFrameAPI;
+        (window.__spotifyEmbedWaiters || []).forEach(function (fn) { fn(IFrameAPI); });
+        window.__spotifyEmbedWaiters = [];
+      };
+    </script>
+    <script src="https://open.spotify.com/embed/iframe-api/v1" async></script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

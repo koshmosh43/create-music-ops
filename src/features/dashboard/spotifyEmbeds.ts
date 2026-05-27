@@ -1,29 +1,79 @@
+import { STACK_HEX } from '../../lib/stackAccents'
+
 export type SpotifyTrack = {
   id: string
   title: string
   artist: string
   accent: string
+  acronym: 'H' | 'I' | 'R' | 'E' | 'M'
+  art: string
+  gapAfter?: boolean
 }
 
-export const SPOTIFY_TRACKS: SpotifyTrack[] = [
-  { id: '4Z5KKoBGxpJo8YbDcGQXd5', title: 'Secondhand (feat. Rema)', artist: 'Don Toliver', accent: '#ff6b9d' },
-  { id: '2odGzH4EPpmvpLtZtHXvL6', title: 'bad idea right?', artist: 'Olivia Rodrigo', accent: '#a78bfa' },
-  { id: '1BxfuPKGuaTgP7aM0Bbdwr', title: 'The Fate of Ophelia', artist: 'Taylor Swift', accent: '#67e8f9' },
-  { id: '4iV5W9uYEdYUVa79Axb7Rh', title: 'Man I Need', artist: 'Olivia Dean', accent: '#34d399' },
-  { id: '7MXVkk9YMctZqd1Srtv4MB', title: 'Babydoll', artist: 'Dominic Fike', accent: '#fbbf24' },
-  { id: '3USxtqRwSYz57Ewm6wWRMp', title: 'Opalite', artist: 'Miley Cyrus', accent: '#f472b6' },
-  { id: '39LLxExYz6ewLAcYrzQQyP', title: 'Sports car', artist: 'Tate McRae', accent: '#fb923c' },
-  { id: '7qiZfU4dY1lWllzX7mPBI3', title: 'End of Beginning', artist: 'Djo', accent: '#84cc16' },
-]
+const TRACK_META = [
+  {
+    id: '37Lm3kusqIFVdyiVGYZTpf',
+    title: 'Hotel',
+    artist: 'Derek Pope',
+    acronym: 'H',
+    art: 'https://image-cdn-ak.spotifycdn.com/image/ab67616d0000b2738b7ab11567abd568b42070ad',
+  },
+  {
+    id: '3u2IrwgaWOQpHJN074qnuC',
+    title: 'I Get By',
+    artist: 'Everlast',
+    acronym: 'I',
+    art: 'https://image-cdn-ak.spotifycdn.com/image/ab67616d0000b273c6b5c08529ff70fa114718e6',
+  },
+  {
+    id: '2YD9JIchaD9JfWrdSKBQcg',
+    title: 'Rapture',
+    artist: 'David Wolves',
+    acronym: 'R',
+    art: 'https://image-cdn-ak.spotifycdn.com/image/ab67616d0000b27360091526a6a79fb548f875f4',
+  },
+  {
+    id: '1czaCgWLWgqp0eRIZ0BcXh',
+    title: 'Everywhere I Go',
+    artist: 'Hollywood Undead',
+    acronym: 'E',
+    gapAfter: true,
+    art: 'https://image-cdn-ak.spotifycdn.com/image/ab67616d0000b273e3a40a64f0473c111cf42b06',
+  },
+  {
+    id: '2FEuiNcpNqNtJR9GzUjUmC',
+    title: 'MSY',
+    artist: '$uicideboy$',
+    acronym: 'M',
+    art: 'https://image-cdn-ak.spotifycdn.com/image/ab67616d0000b27355e5812ec3cdf5f0ede5aa84',
+  },
+  {
+    id: '6zucgMkRLsGgNIN8o0qX0W',
+    title: 'End of Days',
+    artist: 'Vinnie Paz, Block McCloud',
+    acronym: 'E',
+    art: 'https://image-cdn-ak.spotifycdn.com/image/ab67616d0000b27313ea9ad3563b7a2507b6c442',
+  },
+] as const satisfies readonly Omit<SpotifyTrack, 'accent'>[]
 
-export const SPOTIFY_PLAYLIST_ID = '37i9dQZF1DX0XUsuxWHRQd'
+export const ACRONYM_LETTERS = TRACK_META.map((t) => t.acronym)
+export const SPOTIFY_TRACKS: SpotifyTrack[] = TRACK_META.map((t, i) => ({
+  ...t,
+  accent: STACK_HEX.lemon,
+}))
 
-export type PlayerSource =
-  | { kind: 'track'; index: number }
-  | { kind: 'playlist' }
+const EMBED = 'https://open.spotify.com/embed'
 
-export function embedSrc(src: PlayerSource) {
-  if (src.kind === 'playlist')
-    return `https://open.spotify.com/embed/playlist/${SPOTIFY_PLAYLIST_ID}?utm_source=generator&theme=0`
-  return `https://open.spotify.com/embed/track/${SPOTIFY_TRACKS[src.index].id}?utm_source=generator&theme=0`
+export function embedSrc(index: number, autoplay = false) {
+  return embedSrcById(SPOTIFY_TRACKS[index].id, autoplay)
+}
+
+export function embedSrcById(trackId: string, autoplay = false) {
+  const params = new URLSearchParams({ utm_source: 'generator', theme: '0' })
+  if (autoplay) params.set('autoplay', '1')
+  return `${EMBED}/track/${trackId}?${params}`
+}
+
+export function openSpotifyUrl(index: number) {
+  return `https://open.spotify.com/track/${SPOTIFY_TRACKS[index].id}`
 }

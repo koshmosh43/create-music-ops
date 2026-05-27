@@ -1,4 +1,5 @@
 import type { SparklineProps, Trend } from '../types'
+import { STACK_HEX } from '../lib/stackAccents'
 
 const POINTS = 24
 const SVG_SIZE = { w: 96, h: 32 } as const
@@ -24,7 +25,7 @@ function generatePath(seed: number, trend: Trend): string {
   return points.join(' ')
 }
 
-export function Sparkline({ seed, color = '#67e8f9', trend = 'up', className }: SparklineProps) {
+export function Sparkline({ seed, color = STACK_HEX.lemon, trend = 'up', className }: SparklineProps) {
   const path = generatePath(seed, trend)
   const gradientId = `spark-${seed}`
 

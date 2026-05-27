@@ -1,5 +1,5 @@
 export { Dashboard } from './Dashboard'
 export { fetchOpsSnapshot } from './api'
 export { useDashboardStore, dspOptions } from './store'
-export { DSP_COLORS } from './dspColors'
+export { CHART_FILLS, DSP_COLORS, DSP_FALLBACK, DSP_PLATFORM_ORDER, DSP_SPECTRUM } from './dspColors'
 export type { DspFilter } from './store'

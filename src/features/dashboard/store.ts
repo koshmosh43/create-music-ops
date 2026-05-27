@@ -9,6 +9,8 @@ interface DashboardState {
   cmdkOpen: boolean
   openCmdk: () => void
   closeCmdk: () => void
+  activeTrackIndex: number
+  setActiveTrackIndex: (index: number) => void
 }
 
 export const useDashboardStore = create<DashboardState>((set) => ({
@@ -17,6 +19,8 @@ export const useDashboardStore = create<DashboardState>((set) => ({
   cmdkOpen: false,
   openCmdk: () => set({ cmdkOpen: true }),
   closeCmdk: () => set({ cmdkOpen: false }),
+  activeTrackIndex: 0,
+  setActiveTrackIndex: (activeTrackIndex) => set({ activeTrackIndex }),
 }))
 
-export const dspOptions: DspFilter[] = ['All', 'Spotify', 'Apple Music', 'YouTube', 'TikTok', 'Amazon']
+export const dspOptions: DspFilter[] = ['All', 'Spotify', 'Apple Music', 'YouTube', 'Amazon']

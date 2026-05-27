@@ -1,22 +1,18 @@
 import { Disc3 } from 'lucide-react'
-import type { Release } from '../features/dashboard/schema'
+import { SPOTIFY_TRACKS } from '../features/dashboard/spotifyEmbeds'
 
-export function NowPlayingTicker({ releases }: { releases: Release[] }) {
-  const items = releases.filter((r) => r.status === 'Live').slice(0, 6)
-  if (!items.length) return null
-
-  const track = (r: Release) => `${r.artist} — ${r.title}`
-  const doubled = [...items, ...items]
+export function NowPlayingTicker() {
+  const doubled = [...SPOTIFY_TRACKS, ...SPOTIFY_TRACKS]
 
   return (
-    <div className="relative overflow-hidden rounded-full border border-white/[0.06] bg-white/[0.02]">
-      <div className="flex items-center gap-6 whitespace-nowrap py-2 pl-4 pr-8 animate-[marquee_32s_linear_infinite]">
-        {doubled.map((r, i) => (
-          <span key={`${r.id}-${i}`} className="inline-flex items-center gap-2 text-xs text-slate-400">
-            <Disc3 size={12} className="shrink-0 animate-[spin_3s_linear_infinite] text-cyan-300/60" />
-            <span>{track(r)}</span>
-            <span className="text-slate-600">·</span>
-            <span className="text-emerald-400/80">{r.dsp}</span>
+    <div className="ticker-shell" aria-label="Now playing - HIRE ME">
+      <div className="ticker-track" aria-hidden>
+        {doubled.map((t, i) => (
+          <span key={`${t.id}-${i}`} className="ticker-item">
+            <Disc3 size={12} className="ticker-disc" />
+            <span className="ticker-title ticker-title--neon">{t.title}</span>
+            <span className="ticker-dot">·</span>
+            <span className="ticker-artist">{t.artist}</span>
           </span>
         ))}
       </div>

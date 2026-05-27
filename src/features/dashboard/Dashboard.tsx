@@ -3,34 +3,44 @@ import * as Select from '@radix-ui/react-select'
 import * as Tabs from '@radix-ui/react-tabs'
 import { useQuery } from '@tanstack/react-query'
 import { createColumnHelper, flexRender, getCoreRowModel, useReactTable } from '@tanstack/react-table'
-import { Bot, CheckCircle2, ChevronDown, Code2, Database, Disc3, Layers, Music2, Palette, RefreshCw, Zap } from 'lucide-react'
+import {
+  AudioWaveform,
+  CheckCircle2,
+  ChevronDown,
+  CircleDollarSign,
+  CircleGauge,
+  Disc3,
+  Music2,
+  Scale,
+} from 'lucide-react'
 import { useCallback, useMemo, useState } from 'react'
 import * as R from 'remeda'
-import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts'
 import {
   SpotifyEmbedStrip,
   CmdKHint,
   CommandPalette,
-  DspShareEqualizer,
+  DspVelocityPanel,
   HeaderVisualizer,
   NowPlayingTicker,
-  Sparkline,
   Card,
+  MarketsBarChart,
   Metric,
+  TechStackPanel,
+  PortfolioPanel,
 } from '../../components'
-import { cn, useAnimatedNumber, compact, currency, formatTime } from '../../lib'
+import type { CSSProperties } from 'react'
+import { AnimatedNumber, cardHueAt, cn, compact, currency } from '../../lib'
 import type { Release } from '../../types'
 import { fetchOpsSnapshot } from './api'
-import { DSP_COLORS } from './dspColors'
+import { DSP_COLORS, DSP_FALLBACK } from './dspColors'
 import { dspOptions, useDashboardStore } from './store'
 
 
-const CHART_FILLS = ['#67e8f9', '#a78bfa', '#f472b6', '#34d399', '#fbbf24', '#fb923c']
-
 function DspBadge({ dsp }: { dsp: string }) {
+  const color = DSP_COLORS[dsp as keyof typeof DSP_COLORS] ?? DSP_FALLBACK
   return (
     <span className="inline-flex items-center gap-2">
-      <span className="size-2 rounded-full" style={{ background: DSP_COLORS[dsp] ?? '#67e8f9', boxShadow: `0 0 6px ${DSP_COLORS[dsp] ?? '#67e8f9'}` }} />
+      <span className="size-2 rounded-full" style={{ background: color, boxShadow: `0 0 6px ${color}` }} />
       {dsp}
     </span>
   )
@@ -113,7 +123,7 @@ const columns = [
 export function Dashboard() {
   const dsp = useDashboardStore((s) => s.dsp)
   const setDsp = useDashboardStore((s) => s.setDsp)
-  const { data, isLoading, dataUpdatedAt, isFetching, refetch } = useQuery({
+  const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: ['ops-snapshot'],
     queryFn: fetchOpsSnapshot,
     refetchInterval: 30_000,
@@ -122,56 +132,56 @@ export function Dashboard() {
   const handleSelectTab = useCallback((tab: string) => setActiveTab(tab), [])
 
   const filtered = dsp === 'All'
-  const releases = R.pipe(
-    data?.releases ?? [],
-    R.filter((r) => filtered || r.dsp === dsp),
-    R.sortBy([(r) => r.risk, 'desc']),
+
+  const releases = useMemo(
+    () =>
+      R.pipe(
+        data?.releases ?? [],
+        R.filter((r) => filtered || r.dsp === dsp),
+        R.sortBy([(r) => r.risk, 'desc']),
+      ),
+    [data?.releases, filtered, dsp],
   )
 
-  const filteredStreams = R.sumBy(releases, (r) => r.streams)
-  const filteredRevenue = R.sumBy(releases, (r) => r.revenue)
-  const highRisk = R.filter(releases, (r) => r.risk >= 40).length
+  const filteredStreams = useMemo(() => R.sumBy(releases, (r) => r.streams), [releases])
+  const filteredRevenue = useMemo(() => R.sumBy(releases, (r) => r.revenue), [releases])
+  const highRisk = useMemo(() => R.filter(releases, (r) => r.risk >= 40).length, [releases])
 
-  const animStreams = useAnimatedNumber(filtered ? data?.metrics.monthlyStreams ?? 0 : filteredStreams)
-  const animRevenue = useAnimatedNumber(filtered ? data?.metrics.royaltyForecast ?? 0 : filteredRevenue)
-  const animClaims = useAnimatedNumber(filtered ? data?.metrics.claimQueue ?? 0 : highRisk)
-  const animPayout = useAnimatedNumber(data?.metrics.payoutReadiness ?? 0)
+  const streamTarget = filtered ? data?.metrics.monthlyStreams ?? 0 : filteredStreams
+  const revenueTarget = filtered ? data?.metrics.royaltyForecast ?? 0 : filteredRevenue
+  const claimsTarget = filtered ? data?.metrics.claimQueue ?? 0 : highRisk
+  const payoutTarget = data?.metrics.payoutReadiness ?? 0
 
-  const chartData = filtered
-    ? data?.territories ?? []
-    : R.pipe(
-        releases,
-        R.groupBy((r) => r.artist),
-        R.entries(),
-        R.map(([artist, items]) => ({
-          market: artist.split(' ').pop() ?? artist,
-          streams: R.sumBy(items, (i) => i.streams),
-          revenue: R.sumBy(items, (i) => i.revenue),
-        })),
-        R.sortBy([(d) => d.revenue, 'desc']),
-      )
-
-  const table = useReactTable({ data: releases, columns, getCoreRowModel: getCoreRowModel() })
-
-  const dspShareItems = useMemo(
+  const chartData = useMemo(
     () =>
-      data
-        ? R.pipe(
-            data.releases,
-            R.groupBy((r) => r.dsp),
+      filtered
+        ? (data?.territories ?? [])
+        : R.pipe(
+            releases,
+            R.groupBy((r) => r.artist),
             R.entries(),
-            R.map(([name, items]) => ({ name, pct: Math.round((items.length / data.releases.length) * 100) })),
-            R.sortBy([(d) => d.pct, 'desc']),
-          )
-        : [],
-    [data],
+            R.map(([artist, items]) => ({
+              market: artist.split(' ').pop() ?? artist,
+              streams: R.sumBy(items, (i) => i.streams),
+              revenue: R.sumBy(items, (i) => i.revenue),
+            })),
+            R.sortBy([(d) => d.revenue, 'desc']),
+          ),
+    [filtered, data?.territories, releases],
+  )
+
+  const table = useReactTable(
+    useMemo(
+      () => ({ data: releases, columns, getCoreRowModel: getCoreRowModel() }),
+      [releases],
+    ),
   )
 
   if (isLoading || !data) {
     return (
-      <main className="grid min-h-screen place-items-center bg-slate-950 text-slate-200">
+      <main className="grid min-h-screen place-items-center bg-[var(--ink-deep)] text-slate-200">
         <div className="flex flex-col items-center gap-4">
-          <Disc3 size={32} className="animate-spin text-cyan-300" />
+          <Disc3 size={32} className="animate-spin text-[var(--brand-lemon)]" />
           <span className="text-sm">Loading music ops...</span>
         </div>
       </main>
@@ -183,124 +193,168 @@ export function Dashboard() {
   return (
     <>
     <CommandPalette data={data} onSelectDsp={setDsp} onSelectTab={handleSelectTab} />
-    <main className="min-h-screen overflow-hidden bg-[radial-gradient(circle_at_top_left,#164e63_0,#020617_34rem)] px-5 py-6 text-slate-100 md:px-8">
+    <main className="app-canvas min-h-screen overflow-hidden px-5 py-6 text-[var(--ink)] md:px-8">
       <div className="mx-auto flex max-w-7xl flex-col gap-6">
 
-        {/* ── header ── */}
-        <header className="group/header relative isolate overflow-hidden rounded-[2rem] bg-white/[0.06] p-6 pb-10 shadow-2xl shadow-cyan-950/20 backdrop-blur md:p-10 md:pb-14">
-          <div className="pointer-events-none absolute -inset-[1px] rounded-[inherit] border border-transparent" style={{ background: 'linear-gradient(var(--angle, 0deg), rgba(103,232,249,.35), rgba(167,139,250,.25), rgba(244,114,182,.25), rgba(103,232,249,.35)) border-box', mask: 'linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0)', WebkitMaskComposite: 'xor', maskComposite: 'exclude', animation: 'border-rotate 8s linear infinite' }} />
+        <header className="hero-shell group/header relative isolate overflow-hidden rounded-[2rem] p-6 pb-10 backdrop-blur md:p-10 md:pb-14">
+          <div className="hero-shell__mesh" aria-hidden />
+          <div className="hero-shell__border" aria-hidden />
+          <div className="hero-shell__scrim" aria-hidden />
           <HeaderVisualizer />
           <div className="relative z-10">
             <div className="flex items-center justify-between">
-              <span className="inline-flex items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-300/10 px-3 py-1 text-xs font-medium text-cyan-100">
-                <Disc3 size={14} className="animate-[spin_4s_linear_infinite]" /> Create Music Ops
+              <span className="hero-badge label-caps inline-flex items-center gap-2 rounded-full px-3 py-1.5">
+                <Disc3 size={13} className="animate-[spin_4s_linear_infinite]" /> Built EXCLUSIVELY for Create Music Group
               </span>
               <CmdKHint />
             </div>
-            <h1 className="mt-5 max-w-3xl text-4xl font-semibold tracking-tight md:text-6xl">
-              <span className="text-white">Royalty, catalog, and </span>
+            <h1 className="font-display mt-5 max-w-3xl text-4xl font-semibold tracking-[-0.02em] text-white md:text-[3.4rem] md:leading-[1.05]">
+              <span>Royalty, catalog, and </span>
               <span className="animated-gradient-text">DSP intelligence</span>
-              <span className="text-white"> for fast music teams.</span>
+              <span> for fast music teams.</span>
             </h1>
-            <p className="mt-4 max-w-2xl text-base leading-7 text-slate-300">
-              A senior frontend case study: polished internal tooling, validated API contracts, responsive data density, and clean component architecture.
-            </p>
           </div>
         </header>
 
-        {/* ── now playing ticker ── */}
-        {data && <NowPlayingTicker releases={data.releases} />}
+        <NowPlayingTicker />
 
         <SpotifyEmbedStrip />
 
-        {/* ── metrics ── */}
         <section className="grid gap-4 md:grid-cols-4">
           {[
             {
               label: filtered ? 'Monthly streams' : `${dsp} streams`,
-              value: compact.format(Math.round(animStreams)),
+              target: streamTarget,
+              format: (n: number) => compact.format(Math.round(n)),
               delta: filtered ? '+14.2% vs forecast' : `${releases.length} releases`,
-              accent: 'cyan' as const,
-              sparkSeed: 1,
-              sparkColor: '#67e8f9',
+              accent: 'lemon' as const,
+              icon: AudioWaveform,
+              viz: 'bars' as const,
+              vizSeed: 3,
               trend: 'up' as const,
             },
             {
               label: filtered ? 'Royalty forecast' : `${dsp} revenue`,
-              value: currency.format(Math.round(animRevenue)),
+              target: revenueTarget,
+              format: (n: number) => currency.format(Math.round(n)),
               delta: filtered ? '+8.6% MoM' : `of ${currency.format(data.metrics.royaltyForecast)} total`,
-              accent: 'violet' as const,
-              sparkSeed: 7,
-              sparkColor: '#a78bfa',
+              accent: 'lilac' as const,
+              icon: CircleDollarSign,
+              viz: 'flow' as const,
+              vizSeed: 11,
               trend: 'up' as const,
             },
             {
               label: 'Claim queue',
-              value: String(Math.round(animClaims)),
+              target: claimsTarget,
+              format: (n: number) => String(Math.round(n)),
               delta: `${highRisk} urgent releases`,
-              accent: 'rose' as const,
-              sparkSeed: 13,
-              sparkColor: '#f472b6',
-              trend: 'down' as const,
+              accent: 'lilac' as const,
+              icon: Scale,
+              viz: 'pulse' as const,
+              vizSeed: 19,
+              trend: 'neutral' as const,
             },
           ].map((m, i) => (
-            <Metric key={i} {...m} style={{ animationDelay: `${i * 80}ms` }}>
-              <Sparkline seed={m.sparkSeed} color={m.sparkColor} trend={m.trend} className="absolute bottom-3 right-3 h-8 w-24 opacity-60" />
-            </Metric>
+            <Metric
+              key={m.label}
+              label={m.label}
+              value={<AnimatedNumber value={m.target} format={m.format} />}
+              delta={m.delta}
+              accent={m.accent}
+              icon={m.icon}
+              viz={m.viz}
+              vizSeed={m.vizSeed}
+              trend={m.trend}
+              index={i}
+              style={{ animationDelay: `${i * 80}ms` }}
+            />
           ))}
 
-          <Card className="group relative min-h-34 overflow-hidden" style={{ animation: 'stagger-in .5s ease both', animationDelay: '240ms' }}>
-            <div className="pointer-events-none absolute -inset-px rounded-[inherit] bg-gradient-to-br from-cyan-400/20 via-transparent to-transparent opacity-0 transition-opacity duration-500 group-hover:opacity-100" />
-            <p className="text-sm text-slate-400">Payout readiness</p>
-            <strong className="mt-4 block text-3xl font-semibold tabular-nums text-white">{Math.round(animPayout)}%</strong>
-            <Progress.Root className="mt-5 h-2 overflow-hidden rounded-full bg-white/10" value={data.metrics.payoutReadiness}>
+          <Metric
+            label="Payout readiness"
+            value={<AnimatedNumber value={payoutTarget} format={(n) => `${Math.round(n)}%`} />}
+            delta="On track for cycle close"
+            accent="lilac"
+            icon={CircleGauge}
+            index={3}
+            style={{ animationDelay: '240ms' }}
+          >
+            <Progress.Root
+              className="relative z-[1] mt-5 h-2.5 overflow-hidden rounded-full border border-white/10 bg-black/30"
+              value={data.metrics.payoutReadiness}
+            >
               <Progress.Indicator
-                className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-cyan-200 shadow-[0_0_12px_theme(colors.cyan.400/50%)] transition-transform"
+                className="h-full rounded-full bg-[linear-gradient(90deg,hsl(62_96%_52%),hsl(272_72%_58%))] shadow-[0_0_18px_hsl(62_96%_55%_/_0.35)] transition-transform duration-500"
                 style={{ transform: `translateX(-${100 - data.metrics.payoutReadiness}%)` }}
               />
             </Progress.Root>
-            <Sparkline seed={19} color="#67e8f9" trend="up" className="absolute bottom-3 right-3 h-8 w-24 opacity-40" />
-          </Card>
+          </Metric>
         </section>
 
-        {/* ── content ── */}
         <Tabs.Root value={activeTab} onValueChange={setActiveTab} className="grid gap-6 xl:grid-cols-[1fr_24rem]">
           <Card className="min-w-0">
-            <div className="mb-5 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-              <Tabs.List className="inline-flex w-fit rounded-full border border-white/10 bg-black/20 p-1">
-                {['operations', 'markets'].map((tab) => (
-                  <Tabs.Trigger
-                    key={tab}
-                    value={tab}
-                    className="rounded-full px-4 py-2 text-sm capitalize text-slate-300 transition-colors data-[state=active]:bg-white data-[state=active]:text-slate-950 data-[state=active]:shadow-lg"
-                  >
-                    {tab}
-                  </Tabs.Trigger>
-                ))}
-              </Tabs.List>
+            <div className="mb-5 flex flex-col gap-4">
+              <section className="rounded-[1.75rem] p-5 md:p-6 min-w-0">
+                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                  <Tabs.List className="inline-flex w-fit rounded-full border border-white/12 bg-[linear-gradient(135deg,hsl(272_72%_62%_/_0.22),hsl(62_96%_58%_/_0.18))] p-1 shadow-[0_0_24px_hsl(272_72%_62%_/_0.18)]">
+                    {['operations', 'markets'].map((tab) => (
+                      <Tabs.Trigger
+                        key={tab}
+                        value={tab}
+                        className="rounded-full px-4 py-2 text-sm capitalize text-slate-300 transition-colors data-[state=active]:bg-[linear-gradient(90deg,hsl(62_96%_58%),hsl(272_72%_62%))] data-[state=active]:text-[var(--ink-deep)] data-[state=active]:shadow-[0_0_18px_hsl(62_96%_58%_/_0.35)]"
+                      >
+                        {tab}
+                      </Tabs.Trigger>
+                    ))}
+                  </Tabs.List>
+                  <CmdKHint />
+                </div>
+              </section>
 
               <Select.Root value={dsp} onValueChange={setDsp}>
                 <Select.Trigger
                   className={cn(
-                    'inline-flex items-center justify-between gap-3 rounded-full border px-4 py-2 text-sm transition-colors',
+                    'inline-flex min-w-[10rem] items-center justify-between gap-3 rounded-full border px-4 py-2 text-sm transition-colors',
                     dsp !== 'All'
-                      ? 'border-cyan-300/30 bg-cyan-300/10 text-cyan-100'
+                      ? 'border-white/15 bg-white/[0.06] text-white'
                       : 'border-white/10 bg-white/[0.04] text-white',
                   )}
+                  style={
+                    dsp !== 'All'
+                      ? ({
+                          borderColor: `color-mix(in srgb, ${DSP_COLORS[dsp as keyof typeof DSP_COLORS] ?? DSP_FALLBACK} 40%, transparent)`,
+                          boxShadow: `0 0 20px color-mix(in srgb, ${DSP_COLORS[dsp as keyof typeof DSP_COLORS] ?? DSP_FALLBACK} 18%, transparent)`,
+                        } as CSSProperties)
+                      : undefined
+                  }
                 >
                   <Select.Value />
                   {filteredCount !== null && (
-                    <span className="grid size-5 place-items-center rounded-full bg-cyan-300 text-[10px] font-bold text-slate-950">
+                    <span className="grid size-5 place-items-center rounded-full bg-[var(--brand-lemon)] text-[10px] font-bold text-[var(--ink-deep)]">
                       {filteredCount}
                     </span>
                   )}
                   <Select.Icon><ChevronDown size={16} /></Select.Icon>
                 </Select.Trigger>
                 <Select.Portal>
-                  <Select.Content className="overflow-hidden rounded-2xl border border-white/10 bg-slate-950 p-1 text-sm text-white shadow-xl">
-                    <Select.Viewport>
+                  <Select.Content
+                    position="popper"
+                    sideOffset={8}
+                    className="z-[200] overflow-hidden rounded-2xl border border-white/12 bg-slate-950/98 p-1.5 text-sm text-white shadow-2xl backdrop-blur-md"
+                  >
+                    <Select.Viewport className="p-0.5">
                       {dspOptions.map((option) => (
-                        <Select.Item key={option} value={option} className="cursor-pointer rounded-xl px-3 py-2 outline-none data-[highlighted]:bg-cyan-300 data-[highlighted]:text-slate-950">
+                        <Select.Item
+                          key={option}
+                          value={option}
+                          className="relative cursor-pointer rounded-xl px-3 py-2.5 outline-none data-[highlighted]:bg-white/10 data-[highlighted]:text-white"
+                          style={
+                            option !== 'All'
+                              ? ({ '--dsp-accent': DSP_COLORS[option as keyof typeof DSP_COLORS] ?? DSP_FALLBACK } as CSSProperties)
+                              : undefined
+                          }
+                        >
                           <Select.ItemText>
                             {option !== 'All' ? <DspBadge dsp={option} /> : 'All DSPs'}
                           </Select.ItemText>
@@ -352,7 +406,7 @@ export function Dashboard() {
             </Tabs.Content>
 
             <Tabs.Content value="markets">
-              <p className="mb-4 text-xs text-slate-500">
+              <p className="ui-meta panel-heading__sub mb-4 text-xs">
                 {filtered ? 'Revenue by territory' : `Revenue by artist on ${dsp}`}
               </p>
               <div className="h-[26rem]">
@@ -362,132 +416,52 @@ export function Dashboard() {
                   <p className="text-sm">No data for this filter.</p>
                 </div>
               ) : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chartData} barCategoryGap="18%">
-                    <defs>
-                      {CHART_FILLS.map((c, i) => (
-                        <linearGradient key={i} id={`bar-${i}`} x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor={c} stopOpacity={1} />
-                          <stop offset="100%" stopColor={c} stopOpacity={0.35} />
-                        </linearGradient>
-                      ))}
-                      {CHART_FILLS.map((c, i) => (
-                        <filter key={`g${i}`} id={`glow-${i}`}>
-                          <feGaussianBlur stdDeviation="6" result="blur" />
-                          <feFlood floodColor={c} floodOpacity="0.4" />
-                          <feComposite in2="blur" operator="in" />
-                          <feMerge><feMergeNode /><feMergeNode in="SourceGraphic" /></feMerge>
-                        </filter>
-                      ))}
-                    </defs>
-                    <CartesianGrid stroke="rgba(255,255,255,.06)" vertical={false} />
-                    <XAxis dataKey="market" stroke="#94a3b8" tick={{ fill: '#94a3b8', fontSize: 12 }} axisLine={false} tickLine={false} />
-                    <YAxis stroke="#94a3b8" tick={{ fill: '#94a3b8', fontSize: 12 }} axisLine={false} tickLine={false} tickFormatter={(v) => compact.format(v)} />
-                    <Tooltip
-                      cursor={{ fill: 'rgba(103,232,249,.06)' }}
-                      contentStyle={{ background: '#0f172a', border: '1px solid rgba(255,255,255,.12)', borderRadius: 14, boxShadow: '0 12px 40px rgba(0,0,0,.6)', color: '#e2e8f0' }}
-                      labelStyle={{ color: '#cbd5e1', fontWeight: 600, marginBottom: 4 }}
-                      itemStyle={{ color: '#67e8f9' }}
-                      formatter={(v) => [currency.format(Number(v)), 'Revenue']}
-                    />
-                    <Bar dataKey="revenue" radius={[10, 10, 0, 0]}>
-                      {chartData.map((_, i) => (
-                        <Cell key={i} fill={`url(#bar-${i % CHART_FILLS.length})`} filter={`url(#glow-${i % CHART_FILLS.length})`} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
+                <MarketsBarChart data={chartData} />
               )}
               </div>
             </Tabs.Content>
           </Card>
 
-          {/* ── sidebar ── */}
           <div className="flex flex-col gap-4">
-            {/* DSP distribution */}
             <Card className="flex flex-col gap-4 overflow-visible">
-              <h2 className="text-xs font-medium uppercase tracking-[0.18em] text-slate-500">DSP share</h2>
-              <DspShareEqualizer items={dspShareItems} />
+              <h2 className="panel-heading__title label-caps">Platform velocity</h2>
+              <p className="ui-meta panel-heading__sub text-[11px] leading-5">WoW listen trends & cross-platform lift from catalog</p>
+              <DspVelocityPanel releases={data.releases} />
             </Card>
 
-            {/* AI review notes */}
             <Card className="flex flex-col gap-4">
-              <div className="flex items-center gap-3">
-                <span className="grid size-11 place-items-center rounded-2xl bg-gradient-to-br from-violet-500/20 to-fuchsia-500/10 text-violet-200 shadow-inner shadow-violet-500/10">
-                  <Bot size={20} />
-                </span>
-                <div>
-                  <h2 className="font-semibold text-white">AI review notes</h2>
-                  <p className="text-sm text-slate-400">Validated from GraphQL payload</p>
-                </div>
+              <header>
+                <p className="label-caps text-slate-500">Pipeline</p>
+                <h2 className="ui-title mt-1 text-xl text-white">AI review notes</h2>
+                <p className="ui-meta panel-heading__sub mt-1 text-[11px] leading-5">Validated from GraphQL payload</p>
+              </header>
+              <div className="flex flex-col gap-3">
+                {data.insights.slice(0, 1).map((insight, i) => (
+                  <article
+                    key={insight}
+                    className="tech-node card-surface group/node"
+                    style={{ '--card-hue': cardHueAt(i) } as CSSProperties}
+                  >
+                    <span className="tech-node__index font-mono">{String(i + 1).padStart(2, '0')}</span>
+                    <div className="tech-node__head">
+                      <span className="tech-node__icon card-surface__icon">
+                        <CheckCircle2 size={15} strokeWidth={1.75} />
+                      </span>
+                      <div>
+                        <h3 className="ui-title text-sm text-white">Insight</h3>
+                        <p className="font-mono text-[9px] uppercase tracking-[0.14em] text-slate-500">graphql</p>
+                      </div>
+                    </div>
+                    <p className="relative z-[1] text-sm leading-6 text-slate-300">{insight}</p>
+                  </article>
+                ))}
               </div>
-              {data.insights.map((insight, i) => (
-                <article
-                  key={insight}
-                  className="group relative overflow-hidden rounded-2xl border border-white/10 bg-black/20 p-4 text-sm leading-6 text-slate-300 transition-colors hover:border-white/15 hover:bg-white/[0.04]"
-                >
-                  <div
-                    className="pointer-events-none absolute -inset-px rounded-[inherit] opacity-0 transition-opacity duration-500 group-hover:opacity-100"
-                    style={{
-                      background: `linear-gradient(135deg, ${['rgba(103,232,249,.12)', 'rgba(167,139,250,.12)', 'rgba(244,114,182,.12)'][i % 3]} 0%, transparent 60%)`,
-                    }}
-                  />
-                  <CheckCircle2 className="relative mb-3 text-cyan-200" size={18} />
-                  <span className="relative">{insight}</span>
-                </article>
-              ))}
             </Card>
           </div>
         </Tabs.Root>
 
-        {/* ── tech stack ── */}
-        <Card className="relative overflow-hidden">
-          <div className="pointer-events-none absolute -inset-[1px] rounded-[inherit] border border-transparent" style={{ background: 'linear-gradient(var(--angle, 0deg), rgba(103,232,249,.2), rgba(167,139,250,.15), rgba(244,114,182,.15), rgba(103,232,249,.2)) border-box', mask: 'linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0)', WebkitMaskComposite: 'xor', maskComposite: 'exclude', animation: 'border-rotate 12s linear infinite' }} />
-          <div className="mb-5 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <span className="grid size-9 place-items-center rounded-xl bg-gradient-to-br from-cyan-400/15 to-violet-400/10">
-                <Layers size={16} className="text-cyan-300" />
-              </span>
-              <div>
-                <h2 className="text-sm font-semibold text-white">Tech Stack</h2>
-                <p className="text-[11px] text-slate-500">Production-grade architecture</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3 text-xs text-slate-500">
-              <span className="relative flex size-2">
-                <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-50" />
-                <span className="relative inline-flex size-2 rounded-full bg-emerald-400" />
-              </span>
-              <span>Live — {dataUpdatedAt ? formatTime(dataUpdatedAt) : '—'}</span>
-              <button
-                onClick={() => refetch()}
-                className={cn('rounded-full p-1 transition-colors hover:bg-white/[0.06]', isFetching && 'animate-spin')}
-              >
-                <RefreshCw size={12} />
-              </button>
-            </div>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {([
-              { icon: Code2, title: 'Core', color: '#67e8f9', items: ['React 19', 'TypeScript', 'Vite'] },
-              { icon: Palette, title: 'UI / Design', color: '#a78bfa', items: ['Tailwind CSS', 'Radix UI', 'Lucide Icons'] },
-              { icon: Database, title: 'Data Layer', color: '#34d399', items: ['React Query', 'Zustand', 'Zod', 'GraphQL'] },
-              { icon: Zap, title: 'Visualization', color: '#fbbf24', items: ['Recharts', 'TanStack Table', 'Remeda'] },
-            ] as const).map((cat) => (
-              <div key={cat.title} className="group/cat rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4 transition-colors hover:border-white/10 hover:bg-white/[0.04]">
-                <div className="mb-3 flex items-center gap-2">
-                  <cat.icon size={14} style={{ color: cat.color }} />
-                  <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: cat.color }}>{cat.title}</span>
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  {cat.items.map((t) => (
-                    <span key={t} className="text-xs text-slate-400 transition-colors group-hover/cat:text-slate-300">{t}</span>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
+        <TechStackPanel />
+        <PortfolioPanel />
       </div>
     </main>
     </>
