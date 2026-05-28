@@ -13,7 +13,7 @@ import {
   Music2,
   Scale,
 } from 'lucide-react'
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import * as R from 'remeda'
 import {
   SpotifyEmbedStrip,
@@ -130,6 +130,32 @@ export function Dashboard() {
   })
   const [activeTab, setActiveTab] = useState('operations')
   const handleSelectTab = useCallback((tab: string) => setActiveTab(tab), [])
+  const opsTabsRef = useRef<HTMLDivElement>(null)
+  const [tabThumb, setTabThumb] = useState({ x: 0, w: 0 })
+
+  const measureTabThumb = useCallback(() => {
+    const list = opsTabsRef.current
+    if (!list) return
+    const active =
+      list.querySelector<HTMLButtonElement>('[data-state="active"]') ??
+      list.querySelector<HTMLButtonElement>(`[data-value="${activeTab}"]`) ??
+      list.querySelector<HTMLButtonElement>('.ops-tabs__trigger')
+    if (!active || active.offsetWidth < 1) return
+    setTabThumb({ x: active.offsetLeft, w: active.offsetWidth })
+  }, [activeTab])
+
+  useLayoutEffect(() => {
+    measureTabThumb()
+    const id = requestAnimationFrame(() => measureTabThumb())
+    const list = opsTabsRef.current
+    if (!list) return () => cancelAnimationFrame(id)
+    const ro = new ResizeObserver(measureTabThumb)
+    ro.observe(list)
+    return () => {
+      cancelAnimationFrame(id)
+      ro.disconnect()
+    }
+  }, [activeTab, measureTabThumb, data])
 
   const filtered = dsp === 'All'
 
@@ -189,6 +215,8 @@ export function Dashboard() {
   }
 
   const filteredCount = !filtered ? releases.length : null
+  const dspBadgeColor =
+    !filtered ? (DSP_COLORS[dsp as keyof typeof DSP_COLORS] ?? DSP_FALLBACK) : DSP_FALLBACK
 
   return (
     <>
@@ -196,7 +224,7 @@ export function Dashboard() {
     <main className="app-canvas min-h-screen overflow-hidden px-5 py-6 text-[var(--ink)] md:px-8">
       <div className="mx-auto flex max-w-7xl flex-col gap-6">
 
-        <header className="hero-shell group/header relative isolate overflow-hidden rounded-[2rem] p-6 pb-10 backdrop-blur md:p-10 md:pb-14">
+        <header className="hero-shell group/header relative isolate overflow-hidden rounded-[2rem] p-6 pb-10 max-md:backdrop-blur-none backdrop-blur md:p-10 md:pb-14">
           <div className="hero-shell__mesh" aria-hidden />
           <div className="hero-shell__border" aria-hidden />
           <div className="hero-shell__scrim" aria-hidden />
@@ -296,26 +324,27 @@ export function Dashboard() {
           <Card className="min-w-0">
             <div className="mb-5 flex flex-col gap-4">
               <section className="rounded-[1.75rem] p-5 md:p-6 min-w-0">
-                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                  <Tabs.List className="inline-flex w-fit rounded-full border border-white/12 bg-[linear-gradient(135deg,hsl(272_72%_62%_/_0.22),hsl(62_96%_58%_/_0.18))] p-1 shadow-[0_0_24px_hsl(272_72%_62%_/_0.18)]">
+                <div className="ops-toolbar">
+                  <Tabs.List
+                    ref={opsTabsRef}
+                    className="ops-tabs inline-flex w-fit rounded-full border border-white/12 bg-[linear-gradient(135deg,hsl(272_72%_62%_/_0.22),hsl(62_96%_58%_/_0.18))] p-1 shadow-[0_0_24px_hsl(272_72%_62%_/_0.18)]"
+                  >
+                    <span
+                      aria-hidden
+                      className={cn('ops-tabs__thumb', tabThumb.w > 0 && 'ops-tabs__thumb--ready')}
+                      style={{ width: tabThumb.w, transform: `translateX(${tabThumb.x}px)` }}
+                    />
                     {['operations', 'markets'].map((tab) => (
-                      <Tabs.Trigger
-                        key={tab}
-                        value={tab}
-                        className="rounded-full px-4 py-2 text-sm capitalize text-slate-300 transition-colors data-[state=active]:bg-[linear-gradient(90deg,hsl(62_96%_58%),hsl(272_72%_62%))] data-[state=active]:text-[var(--ink-deep)] data-[state=active]:shadow-[0_0_18px_hsl(62_96%_58%_/_0.35)]"
-                      >
+                      <Tabs.Trigger key={tab} value={tab} className="ops-tabs__trigger">
                         {tab}
                       </Tabs.Trigger>
                     ))}
                   </Tabs.List>
                   <CmdKHint />
-                </div>
-              </section>
-
               <Select.Root value={dsp} onValueChange={setDsp}>
                 <Select.Trigger
                   className={cn(
-                    'inline-flex min-w-[10rem] items-center justify-between gap-3 rounded-full border px-4 py-2 text-sm transition-colors',
+                    'dsp-select-trigger inline-flex min-w-[10rem] items-center justify-between gap-3 rounded-full border font-mono px-4 py-2 text-sm transition-colors',
                     dsp !== 'All'
                       ? 'border-white/15 bg-white/[0.06] text-white'
                       : 'border-white/10 bg-white/[0.04] text-white',
@@ -329,19 +358,29 @@ export function Dashboard() {
                       : undefined
                   }
                 >
-                  <Select.Value />
-                  {filteredCount !== null && (
-                    <span className="grid size-5 place-items-center rounded-full bg-[var(--brand-lemon)] text-[10px] font-bold text-[var(--ink-deep)]">
-                      {filteredCount}
-                    </span>
-                  )}
-                  <Select.Icon><ChevronDown size={16} /></Select.Icon>
+                  <Select.Value className="dsp-select-trigger__value min-w-0 truncate" />
+                  <span className="dsp-select-trigger__end">
+                    {filteredCount !== null && (
+                      <span
+                        className="dsp-select-badge grid size-5 place-items-center rounded-full text-[10px] font-bold text-[var(--ink-deep)]"
+                        style={{
+                          background: dspBadgeColor,
+                          boxShadow: `0 0 12px color-mix(in srgb, ${dspBadgeColor} 50%, transparent)`,
+                        }}
+                      >
+                        {filteredCount}
+                      </span>
+                    )}
+                    <Select.Icon className="dsp-select-trigger__icon">
+                      <ChevronDown size={16} strokeWidth={2} />
+                    </Select.Icon>
+                  </span>
                 </Select.Trigger>
                 <Select.Portal>
                   <Select.Content
                     position="popper"
                     sideOffset={8}
-                    className="z-[200] overflow-hidden rounded-2xl border border-white/12 bg-slate-950/98 p-1.5 text-sm text-white shadow-2xl backdrop-blur-md"
+                    className="z-[200] overflow-hidden rounded-2xl border border-white/12 bg-[rgba(46, 35, 56, 0.76)] p-1.5 text-sm text-white shadow-2xl backdrop-blur-md"
                   >
                     <Select.Viewport className="p-0.5">
                       {dspOptions.map((option) => (
@@ -364,9 +403,12 @@ export function Dashboard() {
                   </Select.Content>
                 </Select.Portal>
               </Select.Root>
+              </div>
+            </section>
             </div>
+            
 
-            <Tabs.Content value="operations">
+            <Tabs.Content value="operations" className="ops-tabs-panel">
               {releases.length === 0 ? (
                 <div className="flex flex-col items-center gap-3 py-16 text-slate-500">
                   <Music2 size={32} />
@@ -405,7 +447,7 @@ export function Dashboard() {
               )}
             </Tabs.Content>
 
-            <Tabs.Content value="markets">
+            <Tabs.Content value="markets" className="ops-tabs-panel">
               <p className="ui-meta panel-heading__sub mb-4 text-xs">
                 {filtered ? 'Revenue by territory' : `Revenue by artist on ${dsp}`}
               </p>

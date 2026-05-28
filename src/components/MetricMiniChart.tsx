@@ -8,7 +8,7 @@ import {
   LineChart,
   ResponsiveContainer,
 } from 'recharts'
-import { hslAccentHex } from '../lib/stackAccents'
+import { STACK_HEX, metricToneAt } from '../lib/stackAccents'
 import { cn } from '../lib/cn'
 import type { MetricViz, Trend } from '../types'
 
@@ -49,11 +49,12 @@ function pulseSeries(seed: number, n = 16) {
   })
 }
 
-export function MetricMiniChart({ variant, seed, hue, trend = 'up', className }: Props) {
+export function MetricMiniChart({ variant, seed, hue: _hue, trend = 'up', className }: Props) {
   const uid = useId().replace(/:/g, '')
-  const stroke = hslAccentHex(hue, 82, 58)
-  const fillTop = hslAccentHex(hue, 78, 62)
-  const fillDeep = hslAccentHex(hue, 82, 42)
+  const lemonFirst = metricToneAt(seed) === 'lemon'
+  const fillTop = lemonFirst ? STACK_HEX.lemon : STACK_HEX.lilac
+  const fillDeep = lemonFirst ? STACK_HEX.lilac : STACK_HEX.lemon
+  const stroke = fillTop
 
   const data = useMemo(() => {
     if (variant === 'bars') return barSeries(seed)
@@ -88,7 +89,7 @@ export function MetricMiniChart({ variant, seed, hue, trend = 'up', className }:
             <Line
               type="monotone"
               dataKey="v"
-              stroke={hslAccentHex(hue, 70, 72)}
+              stroke={fillDeep}
               strokeWidth={1.5}
               dot={false}
               isAnimationActive={false}

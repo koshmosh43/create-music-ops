@@ -98,17 +98,10 @@ export function CommandPalette({
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50" onKeyDown={handleKey}>
-      <div
-        className="absolute inset-0 bg-black/70"
-        style={{ animation: 'cmd-fade-in .12s ease' }}
-        onClick={closeCmdk}
-      />
+    <div className="fixed inset-0 z-50 flex items-start justify-center px-4 pt-[16vh]" onKeyDown={handleKey}>
+      <div className="cmdk-overlay absolute inset-0 bg-black/70" onClick={closeCmdk} />
 
-      <div
-        className="absolute left-1/2 top-[16%] w-full max-w-xl -translate-x-1/2 overflow-hidden rounded-3xl border border-white/[0.08] bg-slate-950 shadow-2xl"
-        style={{ animation: 'cmd-scale-in .18s cubic-bezier(.16,1,.3,1)', boxShadow: '0 0 80px hsl(62 96% 58% / 0.08), 0 24px 60px rgba(0,0,0,.5)' }}
-      >
+      <div className="cmdk-panel relative z-10 w-full max-w-xl overflow-hidden rounded-3xl border border-white/[0.08] bg-oklch(0.28 0.04 307.45) font-mono shadow-2xl">
         <div className="relative flex items-center gap-3 px-5 py-4">
           <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-[var(--brand-lilac)]/30 to-transparent" />
           <Search size={20} className="shrink-0 text-[var(--brand-lemon)]" />

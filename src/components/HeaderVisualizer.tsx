@@ -1,11 +1,58 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { SPOTIFY_TRACKS } from '../features/dashboard/spotifyEmbeds'
 import { useDashboardStore } from '../features/dashboard/store'
 import { BlurArtBackdrop } from '../lib/BlurArtBackdrop'
+import { cn } from '../lib/cn'
 import { hslAccentHex, STACK_HUES } from '../lib/stackAccents'
 
 const TAU = Math.PI * 2
-const SYM = 20
+let activeSym = 20
+
+type HeroPerf = {
+  lite: boolean
+  sym: number
+  dprMax: number
+  bloom: boolean
+  chroma: boolean
+  trailEcho: boolean
+  frameMs: number
+  trailEvery: number
+  vinylCacheEvery: number
+  beamCount: number
+}
+
+const PERF_DESKTOP: HeroPerf = {
+  lite: false,
+  sym: 20,
+  dprMax: 2,
+  bloom: true,
+  chroma: true,
+  trailEcho: true,
+  frameMs: 1000 / 60,
+  trailEvery: 1,
+  vinylCacheEvery: 1,
+  beamCount: 14,
+}
+
+const PERF_LITE: HeroPerf = {
+  lite: true,
+  sym: 10,
+  dprMax: 1.25,
+  bloom: false,
+  chroma: false,
+  trailEcho: false,
+  frameMs: 1000 / 30,
+  trailEvery: 2,
+  vinylCacheEvery: 5,
+  beamCount: 6,
+}
+
+function resolveHeroPerf(reduced: boolean): HeroPerf {
+  if (typeof window === 'undefined') return PERF_DESKTOP
+  if (reduced) return { ...PERF_LITE, sym: 8, frameMs: 1000 / 24, trailEvery: 3 }
+  const mobile = window.matchMedia('(max-width: 900px), (pointer: coarse)').matches
+  return mobile ? PERF_LITE : PERF_DESKTOP
+}
 
 type Rgb = [number, number, number]
 
@@ -62,8 +109,8 @@ function withKaleidoscope(
   R: number,
   fn: (ctx: CanvasRenderingContext2D) => void,
 ) {
-  const wedge = TAU / SYM
-  for (let i = 0; i < SYM; i++) {
+  const wedge = TAU / activeSym
+  for (let i = 0; i < activeSym; i++) {
     ctx.save()
     ctx.translate(cx, cy)
     ctx.rotate(i * wedge)
@@ -109,8 +156,8 @@ function drawRosette(
   ctx.stroke()
 }
 
-function drawRgbStreams(ctx: CanvasRenderingContext2D, t: number, R: number, accent: Rgb, dpr: number) {
-  for (let s = 0; s < 10; s++) {
+function drawRgbStreams(ctx: CanvasRenderingContext2D, t: number, R: number, accent: Rgb, dpr: number, count = 10) {
+  for (let s = 0; s < count; s++) {
     const phase = s * 0.87 + t * 0.34
     const col = cycleRgb(t, phase * 1.8, accent, 0.72)
     const reach = R * (0.38 + 0.54 * (0.5 + 0.5 * Math.sin(t * 0.65 + s * 1.1)))
@@ -147,8 +194,9 @@ function drawSilk(
   R: number,
   accent: Rgb,
   dpr: number,
+  count = 8,
 ) {
-  for (let s = 0; s < 8; s++) {
+  for (let s = 0; s < count; s++) {
     const tint = PALETTE[s % PALETTE.length]
     const col = lerpRgb(cycleRgb(t, s * 0.9, accent, 0.5), tint, 0.38 + s * 0.07)
     ctx.beginPath()
@@ -191,8 +239,8 @@ function drawPearls(ctx: CanvasRenderingContext2D, t: number, R: number, accent:
   }
 }
 
-function drawEpitrochoid(ctx: CanvasRenderingContext2D, t: number, R: number, accent: Rgb, dpr: number) {
-  for (const layer of EPITROCHOID_LAYERS) {
+function drawEpitrochoid(ctx: CanvasRenderingContext2D, t: number, R: number, accent: Rgb, dpr: number, maxLayers: number = EPITROCHOID_LAYERS.length) {
+  for (const layer of EPITROCHOID_LAYERS.slice(0, maxLayers)) {
     const col = lerpRgb(accent, hexRgb(hslAccentHex(layer.hue, 88, 58)), 0.55)
     ctx.beginPath()
     for (let s = 0; s <= 240; s++) {
@@ -212,7 +260,7 @@ function drawEpitrochoid(ctx: CanvasRenderingContext2D, t: number, R: number, ac
 }
 
 function drawFacets(ctx: CanvasRenderingContext2D, t: number, R: number, accent: Rgb, dpr: number) {
-  const wedge = TAU / SYM
+  const wedge = TAU / activeSym
   for (let i = 0; i < 5; i++) {
     const col = cycleRgb(t, i * 2.1, accent, 0.64)
     const reach = R * (0.4 + i * 0.12)
@@ -235,7 +283,7 @@ function drawFacets(ctx: CanvasRenderingContext2D, t: number, R: number, accent:
 }
 
 function drawFacetShards(ctx: CanvasRenderingContext2D, t: number, R: number, accent: Rgb, dpr: number) {
-  const wedge = TAU / SYM
+  const wedge = TAU / activeSym
   for (let i = 0; i < 7; i++) {
     const pulse = 0.5 + 0.5 * Math.sin(t * (0.7 + i * 0.08) + i * 1.37)
     const reach = R * (0.22 + i * 0.08)
@@ -271,8 +319,8 @@ function drawPrismLattice(ctx: CanvasRenderingContext2D, t: number, R: number, a
     const rr = R * (0.18 + p * 0.76)
     const col = lerpRgb(cycleRgb(t, ring * 0.52, accent, 0.44), DEEP_INDIGO, 0.34)
     ctx.beginPath()
-    for (let i = 0; i <= SYM; i++) {
-      const a = (i / SYM) * TAU + t * (0.04 + ring * 0.012)
+    for (let i = 0; i <= activeSym; i++) {
+      const a = (i / activeSym) * TAU + t * (0.04 + ring * 0.012)
       const n = 1 + 0.06 * Math.sin(i * 2.1 + t * 0.8 + ring)
       const x = Math.cos(a) * rr * n
       const y = Math.sin(a) * rr * n
@@ -300,12 +348,13 @@ function drawMandalaRings(
   accent: Rgb,
   dpr: number,
   pulse: number,
+  ringCount = MANDALA_RING_COUNT,
 ) {
-  for (let ring = 0; ring < MANDALA_RING_COUNT; ring++) {
-    const p = ring / (MANDALA_RING_COUNT - 1)
+  for (let ring = 0; ring < ringCount; ring++) {
+    const p = ring / Math.max(1, ringCount - 1)
     const rr = R * (0.12 + p * 0.72)
     const phase = t * (0.12 + p * 0.08) + ring * 0.82
-    const segments = SYM + ring * 4
+    const segments = activeSym + ring * 4
     const col = lerpRgb(cycleRgb(t, ring * 0.86, accent, 0.52), PALETTE[(ring + 2) % PALETTE.length], 0.28 + p * 0.22)
 
     ctx.beginPath()
@@ -346,7 +395,7 @@ function drawRefractiveShards(
   dpr: number,
   pulse: number,
 ) {
-  const wedge = TAU / SYM
+  const wedge = TAU / activeSym
   for (let i = 0; i < 8; i++) {
     const ph = t * (0.22 + i * 0.018) + i * 0.73
     const ang = -wedge * 0.5 + wedge * (0.15 + (i % 6) * 0.12) + Math.sin(ph) * wedge * 0.08
@@ -425,20 +474,31 @@ function drawSource(
   accent: Rgb,
   dpr: number,
   pulse: number,
+  lite: boolean,
 ) {
   ctx.globalCompositeOperation = 'lighter'
-  drawRefractiveShards(ctx, t, R, accent, dpr, pulse)
-  drawFacetShards(ctx, t, R, accent, dpr)
-  drawFacets(ctx, t, R, accent, dpr)
-  drawMandalaRings(ctx, t, R, accent, dpr, pulse)
-  for (const rosette of ROSETTES) drawRosette(ctx, t, R, accent, rosette, dpr)
-  drawRgbStreams(ctx, t, R, accent, dpr)
-  drawEpitrochoid(ctx, t, R, accent, dpr)
-  drawPrismLattice(ctx, t, R, accent, dpr)
+  if (lite) {
+    drawFacets(ctx, t, R, accent, dpr)
+    drawMandalaRings(ctx, t, R, accent, dpr, pulse, 4)
+    for (const rosette of ROSETTES.slice(0, 3)) drawRosette(ctx, t, R, accent, rosette, dpr)
+    drawRgbStreams(ctx, t, R, accent, dpr, 5)
+    drawEpitrochoid(ctx, t, R, accent, dpr, 2)
+  } else {
+    drawRefractiveShards(ctx, t, R, accent, dpr, pulse)
+    drawFacetShards(ctx, t, R, accent, dpr)
+    drawFacets(ctx, t, R, accent, dpr)
+    drawMandalaRings(ctx, t, R, accent, dpr, pulse)
+    for (const rosette of ROSETTES) drawRosette(ctx, t, R, accent, rosette, dpr)
+    drawRgbStreams(ctx, t, R, accent, dpr)
+    drawEpitrochoid(ctx, t, R, accent, dpr)
+    drawPrismLattice(ctx, t, R, accent, dpr)
+  }
   ctx.globalCompositeOperation = 'source-over'
-  drawSilk(ctx, t, R, accent, dpr)
-  drawPearls(ctx, t, R, accent)
-  drawMicroDetails(ctx, t, R, accent, dpr, pulse)
+  drawSilk(ctx, t, R, accent, dpr, lite ? 4 : 8)
+  if (!lite) {
+    drawPearls(ctx, t, R, accent)
+    drawMicroDetails(ctx, t, R, accent, dpr, pulse)
+  }
 }
 
 function drawVinyl(
@@ -452,25 +512,28 @@ function drawVinyl(
   dpr: number,
   reduced: boolean,
   pulse: number,
+  lite = false,
 ) {
   const discR = Math.min(R * 0.21, 150 * dpr)
   const labelR = discR * 0.5
   const rot = reduced ? 0 : spin * 5.5 + t * 0.12
-  const shimmer = 0.5 + 0.5 * Math.sin(t * 1.1)
+  const shimmer = lite ? 0.72 : 0.5 + 0.5 * Math.sin(t * 1.1)
   const rimCol = lerpRgb(cycleRgb(t, 0, accent, 0.45), LILAC, 0.38)
 
   ctx.save()
   ctx.rotate(rot)
 
-  const aura = ctx.createRadialGradient(0, 0, discR * 0.85, 0, 0, discR * 1.85)
-  aura.addColorStop(0, 'rgba(0,0,0,0)')
-  aura.addColorStop(0.45, rgba(rimCol, (0.17 + pulse * 0.07) * shimmer))
-  aura.addColorStop(0.78, rgba(lerpRgb(accent, LEMON, 0.4), 0.1 + pulse * 0.05))
-  aura.addColorStop(1, 'rgba(0,0,0,0)')
-  ctx.fillStyle = aura
-  ctx.beginPath()
-  ctx.arc(0, 0, discR * 1.85, 0, TAU)
-  ctx.fill()
+  if (!lite) {
+    const aura = ctx.createRadialGradient(0, 0, discR * 0.85, 0, 0, discR * 1.85)
+    aura.addColorStop(0, 'rgba(0,0,0,0)')
+    aura.addColorStop(0.45, rgba(rimCol, (0.17 + pulse * 0.07) * shimmer))
+    aura.addColorStop(0.78, rgba(lerpRgb(accent, LEMON, 0.4), 0.1 + pulse * 0.05))
+    aura.addColorStop(1, 'rgba(0,0,0,0)')
+    ctx.fillStyle = aura
+    ctx.beginPath()
+    ctx.arc(0, 0, discR * 1.85, 0, TAU)
+    ctx.fill()
+  }
 
   const body = ctx.createRadialGradient(-discR * 0.22, -discR * 0.28, 0, 0, 0, discR)
   body.addColorStop(0, '#1c1a24')
@@ -489,15 +552,33 @@ function drawVinyl(
 
   const grooveFrom = labelR + 2 * dpr
   const grooveTo = discR - 2.5 * dpr
-  const pitch = 1.35 * dpr
-  const grooveCount = Math.max(12, Math.floor((grooveTo - grooveFrom) / pitch))
+  const pitch = (lite ? 2.1 : 1.35) * dpr
+  const grooveCount = lite
+    ? Math.max(8, Math.floor((grooveTo - grooveFrom) / pitch))
+    : Math.max(12, Math.floor((grooveTo - grooveFrom) / pitch))
 
   ctx.lineCap = 'butt'
   for (let g = 0; g < grooveCount; g++) {
     const p = g / grooveCount
     const gr = grooveTo - g * pitch
-    const land = g > 0 && g % 16 === 0
+    const land = !lite && g > 0 && g % 16 === 0
     const bright = 0.2 + (1 - p) * 0.14 + (g % 2) * 0.05
+
+    if (lite) {
+      ctx.strokeStyle = `rgba(22, 20, 28, ${0.68 + p * 0.2})`
+      ctx.lineWidth = 0.95 * dpr
+      ctx.beginPath()
+      ctx.arc(0, 0, gr, 0, TAU)
+      ctx.stroke()
+      if (g % 3 === 0) {
+        ctx.strokeStyle = `rgba(245, 242, 255, ${bright * shimmer * 0.42})`
+        ctx.lineWidth = 0.6 * dpr
+        ctx.beginPath()
+        ctx.arc(0, 0, gr - 0.35 * dpr, 0, TAU)
+        ctx.stroke()
+      }
+      continue
+    }
 
     if (land) {
       ctx.strokeStyle = 'rgba(0, 0, 0, 0.55)'
@@ -523,28 +604,32 @@ function drawVinyl(
 
   ctx.strokeStyle = rgba(rimCol, 0.82)
   ctx.lineWidth = 1.6 * dpr
-  ctx.shadowBlur = 14 * dpr
-  ctx.shadowColor = rgba(rimCol, 0.45)
+  if (!lite) {
+    ctx.shadowBlur = 14 * dpr
+    ctx.shadowColor = rgba(rimCol, 0.45)
+  }
   ctx.beginPath()
   ctx.arc(0, 0, discR, 0, TAU)
   ctx.stroke()
   ctx.shadowBlur = 0
 
-  ctx.strokeStyle = rgba(lerpRgb(accent, LEMON, 0.35), 0.28)
-  ctx.lineWidth = 0.55 * dpr
-  ctx.beginPath()
-  ctx.arc(0, 0, discR * 0.97, 0, TAU)
-  ctx.stroke()
+  if (!lite) {
+    ctx.strokeStyle = rgba(lerpRgb(accent, LEMON, 0.35), 0.28)
+    ctx.lineWidth = 0.55 * dpr
+    ctx.beginPath()
+    ctx.arc(0, 0, discR * 0.97, 0, TAU)
+    ctx.stroke()
 
-  const sheen = ctx.createLinearGradient(-discR, 0, discR, 0)
-  sheen.addColorStop(0, 'rgba(255,255,255,0)')
-  sheen.addColorStop(0.5, `rgba(255,255,255,${0.07 * shimmer})`)
-  sheen.addColorStop(1, 'rgba(255,255,255,0)')
-  ctx.strokeStyle = sheen
-  ctx.lineWidth = 0.7 * dpr
-  ctx.beginPath()
-  ctx.arc(0, 0, discR * 0.83, -0.8, 0.7)
-  ctx.stroke()
+    const sheen = ctx.createLinearGradient(-discR, 0, discR, 0)
+    sheen.addColorStop(0, 'rgba(255,255,255,0)')
+    sheen.addColorStop(0.5, `rgba(255,255,255,${0.07 * shimmer})`)
+    sheen.addColorStop(1, 'rgba(255,255,255,0)')
+    ctx.strokeStyle = sheen
+    ctx.lineWidth = 0.7 * dpr
+    ctx.beginPath()
+    ctx.arc(0, 0, discR * 0.83, -0.8, 0.7)
+    ctx.stroke()
+  }
 
   ctx.beginPath()
   ctx.arc(0, 0, labelR, 0, TAU)
@@ -597,10 +682,9 @@ function drawVolumetricCues(
   t: number,
   accent: Rgb,
   dpr: number,
-  reduced: boolean,
+  beamCount: number,
   pulse: number,
 ) {
-  const beamCount = reduced ? 8 : 14
   ctx.save()
   ctx.globalCompositeOperation = 'screen'
   for (let i = 0; i < beamCount; i++) {
@@ -645,10 +729,17 @@ export function HeaderVisualizer() {
     ready: false,
     url: '',
   })
+  const vinylCacheRef = useRef<HTMLCanvasElement | null>(null)
+  const [liteUi, setLiteUi] = useState(false)
   const state = useRef({
     raf: 0,
     paused: false,
     reduced: false,
+    perf: PERF_DESKTOP as HeroPerf,
+    frame: 0,
+    lastDraw: 0,
+    vinylCacheKey: '',
+    vinylCacheSize: 0,
     size: { w: 0, h: 0 },
     accent: LEMON as Rgb,
     targetAccent: LEMON as Rgb,
@@ -679,19 +770,26 @@ export function HeaderVisualizer() {
 
   useEffect(() => {
     const s = state.current
-    const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
-    const syncMotion = () => {
-      s.reduced = mq.matches
+    const motionMq = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const mobileMq = window.matchMedia('(max-width: 900px), (pointer: coarse)')
+
+    const syncPerf = () => {
+      s.reduced = motionMq.matches
+      s.perf = resolveHeroPerf(s.reduced)
+      activeSym = s.perf.sym
+      setLiteUi(s.perf.lite)
+      s.vinylCacheKey = ''
     }
-    syncMotion()
-    mq.addEventListener('change', syncMotion)
+    syncPerf()
+    motionMq.addEventListener('change', syncPerf)
+    mobileMq.addEventListener('change', syncPerf)
 
     const onVis = () => {
       s.paused = document.hidden
     }
     document.addEventListener('visibilitychange', onVis)
 
-    const draw = () => {
+    const draw = (now: number) => {
       s.raf = requestAnimationFrame(draw)
       if (s.paused) return
 
@@ -702,14 +800,19 @@ export function HeaderVisualizer() {
       const vctx = vinylCanvas.getContext('2d', { alpha: true })
       if (!ctx || !vctx) return
 
-      const t = performance.now() * 0.001
-      if (!s.reduced) {
-        s.spin += 0.0018
-        s.vinylSpin += 0.0085
-      }
-      s.accent = lerpRgb(s.accent, s.targetAccent, 0.024)
+      const perf = s.perf
+      if (now - s.lastDraw < perf.frameMs - 0.5) return
+      s.lastDraw = now
+      s.frame++
 
-      const dpr = Math.min(devicePixelRatio, 2)
+      const t = now * 0.001
+      if (!s.reduced) {
+        s.spin += perf.lite ? 0.0014 : 0.0018
+        s.vinylSpin += perf.lite ? 0.007 : 0.0085
+      }
+      s.accent = lerpRgb(s.accent, s.targetAccent, perf.lite ? 0.032 : 0.024)
+
+      const dpr = Math.min(devicePixelRatio, perf.dprMax)
       const { width: cw, height: ch } = fxCanvas.getBoundingClientRect()
       const w = Math.round(cw * dpr)
       const h = Math.round(ch * dpr)
@@ -722,107 +825,119 @@ export function HeaderVisualizer() {
         vinylCanvas.height = h
         bloomRef.current = null
         trailRef.current = null
+        s.vinylCacheKey = ''
       }
 
       const cx = w * 0.5
       const cy = h * 0.9
       const radius = Math.max(w, h) * 0.78
       const pulse = pulseEnvelope(t, s.reduced)
-      const breathe = 1 + Math.sin(t * 0.48) * (s.reduced ? 0.012 : 0.03) + pulse * 0.012
+      const breathe = 1 + Math.sin(t * 0.48) * (s.reduced ? 0.012 : perf.lite ? 0.022 : 0.03) + pulse * 0.012
+      const updateTrail = s.frame % perf.trailEvery === 0
 
       if (!trailRef.current) trailRef.current = document.createElement('canvas')
       const trail = trailRef.current
-      if (trail.width !== w || trail.height !== h) {
+      const trailResized = trail.width !== w || trail.height !== h
+      if (trailResized) {
         trail.width = w
         trail.height = h
       }
       const tctx = trail.getContext('2d')
-      if (tctx) {
+      if (tctx && (updateTrail || trailResized)) {
         tctx.globalCompositeOperation = 'source-over'
-        tctx.fillStyle = s.reduced ? 'rgba(5,7,13,0.42)' : `rgba(5,7,13,${0.07 + pulse * 0.02})`
+        tctx.fillStyle = s.reduced
+          ? 'rgba(5,7,13,0.42)'
+          : `rgba(5,7,13,${perf.lite ? 0.1 : 0.07 + pulse * 0.02})`
         tctx.fillRect(0, 0, w, h)
         tctx.save()
         tctx.translate(cx, cy)
         tctx.rotate(s.spin)
         tctx.scale(breathe, breathe)
         withKaleidoscope(tctx, 0, 0, radius, (layer) => {
-          drawSource(layer, t, radius, s.accent, dpr, pulse)
+          drawSource(layer, t, radius, s.accent, dpr, pulse, perf.lite)
         })
         tctx.restore()
-        if (!s.reduced) {
+        if (perf.trailEcho) {
           tctx.save()
           tctx.globalAlpha = 0.13 + pulse * 0.1
           tctx.translate(cx + Math.sin(t * 0.62) * w * 0.004, cy - h * 0.01)
           tctx.rotate(-s.spin * 0.58)
           tctx.scale(breathe * 0.95, breathe * 0.92)
           withKaleidoscope(tctx, 0, 0, radius * 0.92, (layer) => {
-            drawSource(layer, t * 0.92, radius * 0.92, lerpRgb(s.accent, LILAC, 0.22), dpr, pulse)
+            drawSource(layer, t * 0.92, radius * 0.92, lerpRgb(s.accent, LILAC, 0.22), dpr, pulse, perf.lite)
           })
           tctx.restore()
         }
       }
 
       ctx.clearRect(0, 0, w, h)
-      ctx.drawImage(trail, 0, 0)
-      drawVolumetricCues(ctx, cx, cy, radius, t, s.accent, dpr, s.reduced, pulse)
+      if (tctx) ctx.drawImage(trail, 0, 0)
+      drawVolumetricCues(ctx, cx, cy, radius, t, s.accent, dpr, perf.beamCount, pulse)
 
-      const focalWell = ctx.createRadialGradient(cx, cy, radius * 0.18, cx, cy, radius * 0.42)
-      focalWell.addColorStop(0, 'rgba(0,0,0,0)')
-      focalWell.addColorStop(0.52, 'rgba(4,5,11,0.1)')
-      focalWell.addColorStop(0.78, 'rgba(2,3,8,0.06)')
-      focalWell.addColorStop(1, 'rgba(0,0,0,0)')
-      ctx.fillStyle = focalWell
-      ctx.beginPath()
-      ctx.arc(cx, cy, radius * 0.42, 0, TAU)
-      ctx.fill()
-
-      if (!bloomRef.current) bloomRef.current = document.createElement('canvas')
-      const bloom = bloomRef.current
-      if (bloom.width !== w || bloom.height !== h) {
-        bloom.width = w
-        bloom.height = h
-      }
-      const bctx = bloom.getContext('2d')
-      if (bctx) {
-        bctx.clearRect(0, 0, w, h)
-        bctx.filter = 'blur(12px)'
-        bctx.drawImage(fxCanvas, 0, 0)
-        bctx.filter = 'none'
-        ctx.save()
-        ctx.globalCompositeOperation = 'lighter'
-        ctx.globalAlpha = 0.14
-        ctx.drawImage(bloom, 0, 0)
-        ctx.restore()
+      if (!perf.lite) {
+        const focalWell = ctx.createRadialGradient(cx, cy, radius * 0.18, cx, cy, radius * 0.42)
+        focalWell.addColorStop(0, 'rgba(0,0,0,0)')
+        focalWell.addColorStop(0.52, 'rgba(4,5,11,0.1)')
+        focalWell.addColorStop(0.78, 'rgba(2,3,8,0.06)')
+        focalWell.addColorStop(1, 'rgba(0,0,0,0)')
+        ctx.fillStyle = focalWell
+        ctx.beginPath()
+        ctx.arc(cx, cy, radius * 0.42, 0, TAU)
+        ctx.fill()
       }
 
-      const highlightRollOff = ctx.createRadialGradient(cx, cy, radius * 0.2, cx, cy, radius * 0.88)
-      highlightRollOff.addColorStop(0, 'rgba(0,0,0,0)')
-      highlightRollOff.addColorStop(0.52, 'rgba(7,9,16,0.04)')
-      highlightRollOff.addColorStop(1, 'rgba(3,4,9,0.08)')
-      ctx.fillStyle = highlightRollOff
-      ctx.fillRect(0, h * 0.2, w, h * 0.8)
+      if (perf.bloom) {
+        if (!bloomRef.current) bloomRef.current = document.createElement('canvas')
+        const bloom = bloomRef.current
+        if (bloom.width !== w || bloom.height !== h) {
+          bloom.width = w
+          bloom.height = h
+        }
+        const bctx = bloom.getContext('2d')
+        if (bctx) {
+          bctx.clearRect(0, 0, w, h)
+          bctx.filter = 'blur(12px)'
+          bctx.drawImage(fxCanvas, 0, 0)
+          bctx.filter = 'none'
+          ctx.save()
+          ctx.globalCompositeOperation = 'lighter'
+          ctx.globalAlpha = 0.14
+          ctx.drawImage(bloom, 0, 0)
+          ctx.restore()
+        }
+      }
+
+      if (!perf.lite) {
+        const highlightRollOff = ctx.createRadialGradient(cx, cy, radius * 0.2, cx, cy, radius * 0.88)
+        highlightRollOff.addColorStop(0, 'rgba(0,0,0,0)')
+        highlightRollOff.addColorStop(0.52, 'rgba(7,9,16,0.04)')
+        highlightRollOff.addColorStop(1, 'rgba(3,4,9,0.08)')
+        ctx.fillStyle = highlightRollOff
+        ctx.fillRect(0, h * 0.2, w, h * 0.8)
+      }
 
       ctx.save()
       ctx.translate(cx, cy)
       ctx.globalCompositeOperation = 'screen'
-      ctx.globalAlpha = 0.72
+      ctx.globalAlpha = perf.lite ? 0.58 : 0.72
       const rayStart = Math.min(radius * 0.26, 176 * dpr)
-      for (let i = 0; i < SYM; i++) {
-        const a = (i / SYM) * TAU + s.spin * 2.2
+      for (let i = 0; i < activeSym; i++) {
+        const a = (i / activeSym) * TAU + s.spin * 2.2
         const col = cycleRgb(t, a, s.accent, 0.55)
-        const sx = Math.cos(a) * rayStart
-        const sy = Math.sin(a) * rayStart
-        const ex = Math.cos(a) * radius * 0.55
-        const ey = Math.sin(a) * radius * 0.55
-        const ray = ctx.createLinearGradient(sx, sy, ex, ey)
+        const ray = ctx.createLinearGradient(
+          Math.cos(a) * rayStart,
+          Math.sin(a) * rayStart,
+          Math.cos(a) * radius * 0.55,
+          Math.sin(a) * radius * 0.55,
+        )
         ray.addColorStop(0, 'rgba(0,0,0,0)')
-        ray.addColorStop(0.18, rgba(lerpRgb(col, DEEP_INDIGO, 0.34), 0.014 + pulse * 0.01))
-        ray.addColorStop(0.55, rgba(lerpRgb(col, LILAC, 0.16), 0.024))
+        ray.addColorStop(0.18, rgba(lerpRgb(col, DEEP_INDIGO, 0.34), perf.lite ? 0.01 : 0.014 + pulse * 0.01))
+        ray.addColorStop(0.55, rgba(lerpRgb(col, LILAC, 0.16), perf.lite ? 0.016 : 0.024))
         ray.addColorStop(1, 'rgba(0,0,0,0)')
         ctx.strokeStyle = ray
         ctx.lineWidth = 0.42 * dpr
         ctx.beginPath()
-        ctx.moveTo(sx, sy)
+        ctx.moveTo(Math.cos(a) * rayStart, Math.sin(a) * rayStart)
         ctx.lineTo(Math.cos(a) * radius * 0.52, Math.sin(a) * radius * 0.52)
         ctx.stroke()
       }
@@ -830,9 +945,9 @@ export function HeaderVisualizer() {
       ctx.restore()
 
       const halo = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius * 0.68)
-      halo.addColorStop(0, rgba(s.accent, 0.12))
-      halo.addColorStop(0.28, rgba(LILAC, 0.08))
-      halo.addColorStop(0.58, rgba(LEMON, 0.06))
+      halo.addColorStop(0, rgba(s.accent, perf.lite ? 0.08 : 0.12))
+      halo.addColorStop(0.28, rgba(LILAC, perf.lite ? 0.05 : 0.08))
+      halo.addColorStop(0.58, rgba(LEMON, perf.lite ? 0.04 : 0.06))
       halo.addColorStop(1, 'rgba(0,0,0,0)')
       ctx.fillStyle = halo
       ctx.fillRect(0, h * 0.28, w, h * 0.72)
@@ -844,7 +959,7 @@ export function HeaderVisualizer() {
       ctx.fillStyle = cinematicVignette
       ctx.fillRect(0, h * 0.18, w, h * 0.82)
 
-      if (!s.reduced) {
+      if (perf.chroma) {
         ctx.save()
         const chroma = clamp(0.5 + 0.5 * Math.sin(t * 0.55), 0.18, 0.62)
         ctx.globalAlpha = 0.06 * chroma
@@ -867,18 +982,57 @@ export function HeaderVisualizer() {
       vctx.beginPath()
       vctx.arc(0, 0, radius * 0.25, 0, TAU)
       vctx.fill()
-      drawVinyl(
-        vctx,
-        t,
-        radius,
-        s.vinylSpin,
-        s.accent,
-        artRef.current.img,
-        artRef.current.ready,
-        dpr,
-        s.reduced,
-        pulse,
-      )
+
+      const vinylRot = s.reduced ? 0 : s.vinylSpin * 5.5 + t * 0.12
+      const cacheKey = `${w}:${artRef.current.url}:${artRef.current.ready ? 1 : 0}`
+
+      if (perf.lite) {
+        if (!vinylCacheRef.current) vinylCacheRef.current = document.createElement('canvas')
+        const cache = vinylCacheRef.current
+        if (s.vinylCacheKey !== cacheKey || s.frame % perf.vinylCacheEvery === 0) {
+          s.vinylCacheKey = cacheKey
+          const discR = Math.min(radius * 0.21, 150 * dpr)
+          const size = Math.ceil(discR * 3.6)
+          cache.width = size
+          cache.height = size
+          s.vinylCacheSize = size
+          const cctx = cache.getContext('2d')
+          if (cctx) {
+            cctx.clearRect(0, 0, size, size)
+            cctx.translate(size / 2, size / 2)
+            drawVinyl(
+              cctx,
+              t,
+              radius,
+              0,
+              s.accent,
+              artRef.current.img,
+              artRef.current.ready,
+              dpr,
+              s.reduced,
+              pulse,
+              true,
+            )
+          }
+        }
+        vctx.rotate(vinylRot)
+        const half = s.vinylCacheSize / 2
+        vctx.drawImage(cache, -half, -half)
+      } else {
+        drawVinyl(
+          vctx,
+          t,
+          radius,
+          s.vinylSpin,
+          s.accent,
+          artRef.current.img,
+          artRef.current.ready,
+          dpr,
+          s.reduced,
+          pulse,
+          false,
+        )
+      }
       vctx.restore()
     }
 
@@ -886,19 +1040,21 @@ export function HeaderVisualizer() {
     return () => {
       cancelAnimationFrame(s.raf)
       document.removeEventListener('visibilitychange', onVis)
-      mq.removeEventListener('change', syncMotion)
+      motionMq.removeEventListener('change', syncPerf)
+      mobileMq.removeEventListener('change', syncPerf)
       bloomRef.current = null
       trailRef.current = null
+      vinylCacheRef.current = null
     }
   }, [])
 
   return (
-    <div className="hero-kaleidoscope-stack" aria-hidden>
+    <div className={cn('hero-kaleidoscope-stack', liteUi && 'hero-kaleidoscope-stack--lite')} aria-hidden>
       <BlurArtBackdrop
         key={track.art}
         src={track.art}
-        blur={56}
-        saturate={1.85}
+        blur={liteUi ? 28 : 56}
+        saturate={liteUi ? 1.45 : 1.85}
         className="hero-kaleidoscope__art-bg"
       />
       <div className="hero-kaleidoscope__art-scrim" />

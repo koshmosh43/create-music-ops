@@ -146,9 +146,10 @@ export function SpotifyEmbedStrip() {
             href={openSpotifyUrl(activeIndex)}
             target="_blank"
             rel="noreferrer"
-            className="spotify-open"
+            className="spotify-open shrink-0 self-start sm:self-auto"
           >
-            Open on Spotify <ExternalLink size={13} />
+            Open on Spotify
+            <ExternalLink size={13} strokeWidth={2} aria-hidden />
           </a>
         </div>
 

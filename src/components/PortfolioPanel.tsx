@@ -138,7 +138,7 @@ export function PortfolioPanel() {
           </p>
         </div>
         <ul className="portfolio-panel__tags" aria-label="Role alignment">
-          {['Internal tooling', 'Pixel-perfect', 'React 19 stack', 'Music ops'].map((tag) => (
+          {['Internal tooling', 'Pixel-perfect', 'React 19 stack'].map((tag) => (
             <li key={tag} className="portfolio-panel__tag hero-badge">
               {tag}
             </li>

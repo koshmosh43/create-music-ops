@@ -66,7 +66,7 @@ export function Metric({
       style={{ '--card-hue': hue, animation: 'stagger-in .5s ease both', ...style } as CSSProperties}
     >
       <div className="relative z-10 flex items-start justify-between gap-2 sm:gap-3">
-        <p className="min-w-0 pr-1 text-[13px] leading-snug text-slate-400 sm:text-sm">{label}</p>
+        <p className="font-display min-w-0 pr-1 text-[16px] color-[lemon] text-[var(--brand-lemon-soft)] leading-snug sm:text-sm">{label}</p>
         <MetricIcon icon={Icon} />
       </div>
       <strong className="relative z-[1] mt-3 block text-3xl font-semibold tabular-nums tracking-tight text-white">{value}</strong>
