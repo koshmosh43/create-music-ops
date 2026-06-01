@@ -6,6 +6,8 @@ import { cn } from '../lib/cn'
 import { hslAccentHex, STACK_HUES } from '../lib/stackAccents'
 
 const TAU = Math.PI * 2
+const KALEIDO_SPIN_S = 0.108
+const VINYL_SPIN_S = 0.51
 let activeSym = 20
 
 type HeroPerf = {
@@ -801,16 +803,17 @@ export function HeaderVisualizer() {
       if (!ctx || !vctx) return
 
       const perf = s.perf
-      if (now - s.lastDraw < perf.frameMs - 0.5) return
+      if (s.lastDraw && now - s.lastDraw < perf.frameMs - 0.5) return
+      const dt = s.lastDraw ? (now - s.lastDraw) / 1000 : perf.frameMs / 1000
       s.lastDraw = now
       s.frame++
 
       const t = now * 0.001
       if (!s.reduced) {
-        s.spin += perf.lite ? 0.0014 : 0.0018
-        s.vinylSpin += perf.lite ? 0.007 : 0.0085
+        s.spin += KALEIDO_SPIN_S * dt
+        s.vinylSpin += VINYL_SPIN_S * dt
       }
-      s.accent = lerpRgb(s.accent, s.targetAccent, perf.lite ? 0.032 : 0.024)
+      s.accent = lerpRgb(s.accent, s.targetAccent, 1 - Math.exp(-1.44 * dt))
 
       const dpr = Math.min(devicePixelRatio, perf.dprMax)
       const { width: cw, height: ch } = fxCanvas.getBoundingClientRect()

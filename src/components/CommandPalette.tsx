@@ -169,7 +169,7 @@ export function CmdKHint() {
   return (
     <button type="button" onClick={openCmdk} className="quick-actions-btn group">
       <Search size={14} strokeWidth={2} className="quick-actions-btn__icon" />
-      <span className="quick-actions-btn__label hidden sm:inline">Quick actions</span>
+      <span className="quick-actions-btn__label">Quick actions</span>
       <kbd className="quick-actions-btn__kbd">
         <Command size={10} strokeWidth={2} />K
       </kbd>

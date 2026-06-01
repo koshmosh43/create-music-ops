@@ -533,6 +533,15 @@ a {
   .ops-tabs {
     margin-inline: auto;
   }
+
+  .ops-toolbar .quick-actions-btn {
+    width: 100%;
+    justify-content: space-around;
+  }
+
+  .ops-toolbar .quick-actions-btn__label {
+    display: inline;
+  }
 }
 
 .dsp-select-trigger__end {
@@ -1730,10 +1739,12 @@ a {
 }
 
 .spotify-player__chrome-meta {
-  position: relative;
+  position: absolute;
+  bottom: 3%;
+  right: 5%;
   z-index: 2;
   margin: 0 auto;
-  margin-top: 18%;
+  margin-top: 5%;
   min-width: 0;
 }
 
@@ -1778,7 +1789,6 @@ a {
   align-items: center;
   justify-content: flex-end;
   gap: 0.65rem;
-  margin-top: 1.25rem;
 }
 
 .spotify-player__play {

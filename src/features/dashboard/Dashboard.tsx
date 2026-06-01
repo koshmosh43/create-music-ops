@@ -234,7 +234,6 @@ export function Dashboard() {
               <span className="hero-badge label-caps inline-flex items-center gap-2 rounded-full px-3 py-1.5">
                 <Disc3 size={13} className="animate-[spin_4s_linear_infinite]" /> Built EXCLUSIVELY for Create Music Group
               </span>
-              <CmdKHint />
             </div>
             <h1 className="font-display mt-5 max-w-3xl text-4xl font-semibold tracking-[-0.02em] text-white md:text-[3.4rem] md:leading-[1.05]">
               <span>Royalty, catalog, and </span>
